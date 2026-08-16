@@ -9,6 +9,7 @@ public class CartaPokemon extends Carta {
     private List<CartaEnergia> energiasAnexadas;
     private String evoluiDe; // nome do Pokémon que precisa estar em campo para evoluir para este. null = forma Básica
     private int limiteEnergias; // capacidade máxima de energias que esse Pokémon aguenta (sorteado entre 6 e 8)
+    private boolean evoluiuNesteTurno; // trava a evolução desse Pokémon específico até o próximo turno dele
 
     // Construtor para Pokémon Básico (não evolui de nada)
     public CartaPokemon(String nome, String tipoElemento, int hpMaximo, int danoAtaque) {
@@ -25,6 +26,7 @@ public class CartaPokemon extends Carta {
         this.energiasAnexadas = new ArrayList<>();
         this.evoluiDe = evoluiDe;
         this.limiteEnergias = 6 + (int) (Math.random() * 3); // sorteia 6, 7 ou 8
+        this.evoluiuNesteTurno = false;
     }
 
     public String getTipoElemento() { return tipoElemento; }
@@ -35,10 +37,16 @@ public class CartaPokemon extends Carta {
     public String getEvoluiDe() { return evoluiDe; }
     public boolean isBasico() { return evoluiDe == null; }
     public int getLimiteEnergias() { return limiteEnergias; }
+    public boolean isEvoluiuNesteTurno() { return evoluiuNesteTurno; }
+    public void setEvoluiuNesteTurno(boolean valor) { this.evoluiuNesteTurno = valor; }
 
     public void receberDano(int dano) {
         this.hpAtual -= dano;
         if (this.hpAtual < 0) this.hpAtual = 0;
+    }
+
+    public void curar(int quantidade) {
+        this.hpAtual = Math.min(this.hpMaximo, this.hpAtual + quantidade);
     }
 
     public boolean anexarEnergia(CartaEnergia energia) {
@@ -63,6 +71,9 @@ public class CartaPokemon extends Carta {
                 + " | Energias: " + energiasAnexadas.size() + "/" + limiteEnergias + "]";
         if (evoluiDe != null) {
             base += " (Evolui de " + evoluiDe + ")";
+        }
+        if (evoluiuNesteTurno) {
+            base += " 🚫(já evoluiu neste turno)";
         }
         return base;
     }
