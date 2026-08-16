@@ -1,105 +1,93 @@
 import java.util.Scanner;
 
 public class App {
+    // Índices do array de disponibilidade de times: 0 = Água, 1 = Fogo, 2 = Planta
+    private static final int AGUA = 0;
+    private static final int FOGO = 1;
+    private static final int PLANTA = 2;
+
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        
-        System.out.print("Digite o seu nome de Treinador: ");
-        String nomeTreinador = scanner.nextLine();
-        Jogador jogador = new Jogador(nomeTreinador);
 
-        // ---------- ESCOLHA DE TIME ----------
-        boolean temAgua = false;
-        boolean temFogo = false;
-        boolean temPlanta = false;
-        boolean escolhendo = true;
+        // ---------- CRIAÇÃO DOS 2 JOGADORES ----------
+        System.out.println("=========== POKÉMON TCG - MODO VERSUS ===========");
 
-        System.out.println("\n=========== ESCOLHA SEU TIME ===========");
-        System.out.println("Você pode escolher mais de um time. Digite o número e aperte Enter.");
+        System.out.print("Digite o nome do Treinador 1: ");
+        String nome1 = scanner.nextLine();
+        Jogador jogador1 = new Jogador(nome1);
 
-        while (escolhendo) {
-            System.out.println("\n1. Time Água" + (temAgua ? " ✅ (já escolhido)" : ""));
-            System.out.println("2. Time Fogo" + (temFogo ? " ✅ (já escolhido)" : ""));
-            System.out.println("3. Time Planta" + (temPlanta ? " ✅ (já escolhido)" : ""));
-            System.out.println("0. Concluir escolha e começar a partida");
-            System.out.print("Escolha uma opção: ");
+        System.out.print("Digite o nome do Treinador 2: ");
+        String nome2 = scanner.nextLine();
+        Jogador jogador2 = new Jogador(nome2);
 
-            int opcaoTime = scanner.nextInt();
+        // Times disponíveis, compartilhado entre os dois jogadores.
+        // Assim que um time é escolhido por alguém, ele some da lista do outro também.
+        boolean[] timesDisponiveis = { true, true, true }; // Água, Fogo, Planta
 
-            if (opcaoTime == 1) {
-                if (!temAgua) {
-                    adicionarTimeAgua(jogador);
-                    temAgua = true;
-                    System.out.println("💧 Time Água adicionado à sua mão!");
-                } else {
-                    System.out.println("Você já escolheu o Time Água!");
-                }
-            } else if (opcaoTime == 2) {
-                if (!temFogo) {
-                    adicionarTimeFogo(jogador);
-                    temFogo = true;
-                    System.out.println("🔥 Time Fogo adicionado à sua mão!");
-                } else {
-                    System.out.println("Você já escolheu o Time Fogo!");
-                }
-            } else if (opcaoTime == 3) {
-                if (!temPlanta) {
-                    adicionarTimePlanta(jogador);
-                    temPlanta = true;
-                    System.out.println("🌿 Time Planta adicionado à sua mão!");
-                } else {
-                    System.out.println("Você já escolheu o Time Planta!");
-                }
-            } else if (opcaoTime == 0) {
-                if (!temAgua && !temFogo && !temPlanta) {
-                    System.out.println("⚠️ Escolha pelo menos 1 time antes de começar!");
-                } else {
-                    escolhendo = false;
-                }
-            } else {
-                System.out.println("Opção inválida! Tente novamente.");
-            }
-        }
+        escolherTimes(scanner, jogador1, timesDisponiveis);
+        escolherTimes(scanner, jogador2, timesDisponiveis);
 
-        // Embaralha o baralho montado e compra a mão inicial
-        jogador.verificarBaralho();
+        // Cartas de Treinador (Poção e Troca) — independem do time, todo mundo recebe
+        adicionarCartasTreinador(jogador1);
+        adicionarCartasTreinador(jogador2);
+
+        // Embaralha os baralhos e compra a mão inicial de cada jogador
         int tamanhoMaoInicial = 6;
-        System.out.println("\n🃏 Comprando sua mão inicial de " + tamanhoMaoInicial + " cartas...");
-        for (int i = 0; i < tamanhoMaoInicial; i++) {
-            jogador.comprarCarta();
-        }
+        jogador1.verificarBaralho();
+        jogador2.verificarBaralho();
 
-        // Oponente de teste, já com um Pokémon Ativo em campo e com energia, para poder revidar os ataques
-        Jogador oponente = new Jogador("Rival");
-        oponente.getMao().add(new CartaPokemon("Blastoise", "Água", 120, 70));
-        oponente.colocarPokemonEmCampo(0, 0);
-        oponente.anexarEnergia(oponente.getPokemonAtivo());
-        oponente.encerrarRodada(); // reseta o limite de energia usado na preparação, sem gastar rodada de verdade
+        System.out.println("\n🃏 " + jogador1.getNome() + " comprando mão inicial...");
+        for (int i = 0; i < tamanhoMaoInicial; i++) jogador1.comprarCarta();
+
+        System.out.println("🃏 " + jogador2.getNome() + " comprando mão inicial...");
+        for (int i = 0; i < tamanhoMaoInicial; i++) jogador2.comprarCarta();
+
+        // ---------- LOOP PRINCIPAL - TURNOS ALTERNADOS ----------
+        Jogador jogadorAtual = jogador1;
+        Jogador adversario = jogador2;
+
+        boolean jogador1PrimeiroTurno = true;
+        boolean jogador2PrimeiroTurno = true;
 
         boolean jogando = true;
-        int numeroRodada = 1;
+        int numeroTurno = 1;
 
         while (jogando) {
-            System.out.println("\n######################## RODADA " + numeroRodada + " ########################");
+            System.out.println("\n######################## TURNO " + numeroTurno + " - VEZ DE " + jogadorAtual.getNome().toUpperCase() + " ########################");
 
-            // A partir da 2ª rodada, o jogador compra 1 carta automaticamente no início do turno
-            if (numeroRodada > 1) {
-                jogador.comprarCarta();
+            // ---- PASSO 1: Compra obrigatória (exceto no primeiríssimo turno, que já teve a mão inicial) ----
+            boolean ehPrimeiroTurnoDoJogadorAtual = (jogadorAtual == jogador1) ? jogador1PrimeiroTurno : jogador2PrimeiroTurno;
+            if (!ehPrimeiroTurnoDoJogadorAtual) {
+                boolean conseguiuComprar = jogadorAtual.comprarCarta();
+                if (!conseguiuComprar) {
+                    System.out.println("\n💀 " + jogadorAtual.getNome() + " não tem mais cartas para comprar e PERDE O JOGO imediatamente!");
+                    System.out.println("🏆 " + adversario.getNome() + " venceu a partida!");
+                    jogando = false;
+                    break;
+                }
+            } else {
+                if (jogadorAtual == jogador1) jogador1PrimeiroTurno = false;
+                else jogador2PrimeiroTurno = false;
             }
 
-            jogador.mostrarTabuleiro();
-            jogador.mostrarMao();
-            System.out.println("🆚 Pokémon Ativo do " + oponente.getNome() + ": " + oponente.getPokemonAtivo());
+            // Libera novamente a evolução dos Pokémon deste jogador pro turno que está começando
+            jogadorAtual.resetarEvolucoesDoTurno();
 
-            System.out.println("\n--- O QUE VOCÊ QUER FAZER? ---");
-            System.out.println("1. Baixar um Pokémon Básico da mão para o campo");
-            System.out.println("2. Anexar uma Energia a um Pokémon (1x por rodada)");
-            System.out.println("3. Evoluir um Pokémon em campo (1x por rodada)");
-            System.out.println("4. Atacar o Pokémon Ativo do oponente (1x por rodada)");
-            System.out.println("5. Passar a rodada");
-            System.out.println("6. Sair do jogo");
+            jogadorAtual.mostrarTabuleiro();
+            jogadorAtual.mostrarMao();
+            System.out.println("🆚 Pokémon Ativo de " + adversario.getNome() + ": " + adversario.getPokemonAtivo());
+
+            System.out.println("\n--- " + jogadorAtual.getNome() + ", O QUE VOCÊ QUER FAZER? (Passo 2: Ações livres) ---");
+            System.out.println("1. Baixar Pokémon(s) Básico(s) da mão para o campo (sem limite)");
+            System.out.println("2. Anexar uma Energia a um Pokémon (1x por turno)");
+            System.out.println("3. Evoluir um Pokémon em campo (1x por Pokémon, a partir do Turno 2)");
+            System.out.println("4. Usar carta de Treinador (Poção ou Troca)");
+            System.out.println("5. Recuar o Pokémon Ativo, trocando por um do Banco (1x por turno)");
+            System.out.println("6. Atacar o Pokémon Ativo do adversário — ENCERRA O TURNO");
+            System.out.println("7. Passar o turno sem atacar");
+            System.out.println("8. Sair do jogo");
             System.out.print("Escolha uma opção: ");
-            
+
             int opcao = scanner.nextInt();
 
             if (opcao == 1) {
@@ -110,14 +98,14 @@ public class App {
                 System.out.println("Colocar onde? (0 = Pokémon Ativo, 1 = Banco de Reservas)");
                 int destino = scanner.nextInt();
 
-                jogador.colocarPokemonEmCampo(indiceNaMao, destino);
+                jogadorAtual.colocarPokemonEmCampo(indiceNaMao, destino);
 
             } else if (opcao == 2) {
                 System.out.println("Anexar Energia em qual Pokémon? (0 = Ativo, 1 a 5 = posição no Banco)");
                 int indiceDestino = scanner.nextInt();
-                CartaPokemon destino = jogador.getPokemonDoCampoPorIndice(indiceDestino);
+                CartaPokemon destino = jogadorAtual.getPokemonDoCampoPorIndice(indiceDestino);
 
-                jogador.anexarEnergia(destino);
+                jogadorAtual.anexarEnergia(destino);
 
             } else if (opcao == 3) {
                 System.out.print("Digite o número da carta de Evolução na sua mão: ");
@@ -126,90 +114,200 @@ public class App {
 
                 System.out.println("Evoluir qual Pokémon em campo? (0 = Ativo, 1 a 5 = posição no Banco)");
                 int indiceAlvo = scanner.nextInt();
-                CartaPokemon alvo = jogador.getPokemonDoCampoPorIndice(indiceAlvo);
+                CartaPokemon alvo = jogadorAtual.getPokemonDoCampoPorIndice(indiceAlvo);
 
-                jogador.evoluir(indiceNaMao, alvo);
+                jogadorAtual.evoluir(indiceNaMao, alvo, numeroTurno);
 
             } else if (opcao == 4) {
-                jogador.atacar(oponente);
+                System.out.print("Digite o número da carta de Treinador na sua mão: ");
+                int numeroCarta = scanner.nextInt();
+                int indiceNaMao = numeroCarta - 1;
 
-            } else if (opcao == 5) {
-                jogador.encerrarRodada();
+                if (indiceNaMao < 0 || indiceNaMao >= jogadorAtual.getMao().size()
+                        || !(jogadorAtual.getMao().get(indiceNaMao) instanceof CartaTreinador)) {
+                    System.out.println("Essa não é uma carta de Treinador válida!");
+                } else {
+                    CartaTreinador cartaTreinador = (CartaTreinador) jogadorAtual.getMao().get(indiceNaMao);
 
-                // O Rival revida automaticamente se ainda tiver um Pokémon Ativo vivo
-                if (oponente.getPokemonAtivo() != null) {
-                    oponente.atacar(jogador);
-                    oponente.encerrarRodada();
+                    if (cartaTreinador.getEfeito().equalsIgnoreCase("Poção")) {
+                        System.out.println("Curar qual Pokémon? (0 = Ativo, 1 a 5 = posição no Banco)");
+                        int indiceAlvo = scanner.nextInt();
+                        CartaPokemon alvo = jogadorAtual.getPokemonDoCampoPorIndice(indiceAlvo);
+                        jogadorAtual.usarPocao(indiceNaMao, alvo);
+
+                    } else if (cartaTreinador.getEfeito().equalsIgnoreCase("Troca")) {
+                        System.out.println("Trocar o Ativo por qual posição do Banco? (1 a 5)");
+                        int posicaoBanco = scanner.nextInt();
+                        jogadorAtual.usarTroca(indiceNaMao, posicaoBanco - 1);
+                    }
                 }
 
-                numeroRodada++;
+            } else if (opcao == 5) {
+                System.out.println("Trocar o Ativo por qual posição do Banco? (1 a 5)");
+                int posicaoBanco = scanner.nextInt();
+                int indiceBanco = posicaoBanco - 1;
+
+                jogadorAtual.recuar(indiceBanco);
 
             } else if (opcao == 6) {
+                boolean atacou = jogadorAtual.atacar(adversario);
+
+                if (atacou) {
+                    // Passo 3: atacar encerra o turno imediatamente
+                    jogadorAtual.encerrarRodada();
+                    System.out.println("➡️ Turno encerrado automaticamente após o ataque.");
+
+                    Jogador troca = jogadorAtual;
+                    jogadorAtual = adversario;
+                    adversario = troca;
+
+                    numeroTurno++;
+                }
+
+            } else if (opcao == 7) {
+                jogadorAtual.encerrarRodada();
+
+                // Troca de turno: quem jogava vira adversário, e vice-versa
+                Jogador troca = jogadorAtual;
+                jogadorAtual = adversario;
+                adversario = troca;
+
+                numeroTurno++;
+
+            } else if (opcao == 8) {
                 System.out.println("Encerrando a partida... Até a próxima!");
                 jogando = false;
             } else {
                 System.out.println("Opção inválida! Tente novamente.");
             }
-            
+
             System.out.println("\n----------------------------------------------------\n");
         }
 
         scanner.close();
     }
 
+    // ---------- ESCOLHA DE TIME (com exclusividade entre os jogadores) ----------
+
+    private static void escolherTimes(Scanner scanner, Jogador jogador, boolean[] disponivel) {
+        boolean escolheu = false;
+
+        System.out.println("\n=========== " + jogador.getNome().toUpperCase() + ", ESCOLHA SEU TIME ===========");
+
+        while (!escolheu) {
+            System.out.println("\n1. Time Água" + (!disponivel[AGUA] ? " ❌ (indisponível)" : ""));
+            System.out.println("2. Time Fogo" + (!disponivel[FOGO] ? " ❌ (indisponível)" : ""));
+            System.out.println("3. Time Planta" + (!disponivel[PLANTA] ? " ❌ (indisponível)" : ""));
+            System.out.print("Escolha uma opção: ");
+
+            int opcaoTime = scanner.nextInt();
+
+            if (opcaoTime == 1) {
+                if (disponivel[AGUA]) {
+                    adicionarTimeAgua(jogador);
+                    disponivel[AGUA] = false;
+                    escolheu = true;
+                    System.out.println("💧 Time Água escolhido por " + jogador.getNome() + "!");
+                } else {
+                    System.out.println("⚠️ O Time Água já foi escolhido pelo adversário!");
+                }
+            } else if (opcaoTime == 2) {
+                if (disponivel[FOGO]) {
+                    adicionarTimeFogo(jogador);
+                    disponivel[FOGO] = false;
+                    escolheu = true;
+                    System.out.println("🔥 Time Fogo escolhido por " + jogador.getNome() + "!");
+                } else {
+                    System.out.println("⚠️ O Time Fogo já foi escolhido pelo adversário!");
+                }
+            } else if (opcaoTime == 3) {
+                if (disponivel[PLANTA]) {
+                    adicionarTimePlanta(jogador);
+                    disponivel[PLANTA] = false;
+                    escolheu = true;
+                    System.out.println("🌿 Time Planta escolhido por " + jogador.getNome() + "!");
+                } else {
+                    System.out.println("⚠️ O Time Planta já foi escolhido pelo adversário!");
+                }
+            } else {
+                System.out.println("Opção inválida! Tente novamente.");
+            }
+        }
+    }
+
     // ---------- TIMES DISPONÍVEIS ----------
-    // Cada método adiciona a linha evolutiva completa + energias daquele elemento na mão do jogador
+    // Cada método adiciona a linha evolutiva completa daquele elemento no baralho, com múltiplas cópias
+    // (regra oficial: até 4 cópias por carta com o mesmo nome). Básicos x3, evoluções x2, lendários x1.
+
+    private static void adicionarCopias(Jogador jogador, String nome, String tipo, int hp, int dano, String evoluiDe, int copias) {
+        for (int i = 0; i < copias; i++) {
+            if (evoluiDe == null) {
+                jogador.adicionarAoBaralho(new CartaPokemon(nome, tipo, hp, dano));
+            } else {
+                jogador.adicionarAoBaralho(new CartaPokemon(nome, tipo, hp, dano, evoluiDe));
+            }
+        }
+    }
 
     private static void adicionarTimeAgua(Jogador jogador) {
-        jogador.adicionarAoBaralho(new CartaPokemon("Froakie", "Água", 40, 10));
-        jogador.adicionarAoBaralho(new CartaPokemon("Frogadier", "Água", 65, 30, "Froakie"));
-        jogador.adicionarAoBaralho(new CartaPokemon("Greninja", "Água", 90, 60, "Frogadier"));
+        adicionarCopias(jogador, "Froakie", "Água", 40, 10, null, 3);
+        adicionarCopias(jogador, "Frogadier", "Água", 65, 30, "Froakie", 2);
+        adicionarCopias(jogador, "Greninja", "Água", 90, 60, "Frogadier", 2);
 
-        jogador.adicionarAoBaralho(new CartaPokemon("Magikarp", "Água", 30, 5));
-        jogador.adicionarAoBaralho(new CartaPokemon("Gyarados", "Água", 130, 80, "Magikarp"));
+        adicionarCopias(jogador, "Magikarp", "Água", 30, 5, null, 3);
+        adicionarCopias(jogador, "Gyarados", "Água", 130, 80, "Magikarp", 2);
 
-        jogador.adicionarAoBaralho(new CartaPokemon("Squirtle", "Água", 50, 15));
-        jogador.adicionarAoBaralho(new CartaPokemon("Wartortle", "Água", 80, 35, "Squirtle"));
-        jogador.adicionarAoBaralho(new CartaPokemon("Blastoise", "Água", 120, 70, "Wartortle"));
+        adicionarCopias(jogador, "Squirtle", "Água", 50, 15, null, 3);
+        adicionarCopias(jogador, "Wartortle", "Água", 80, 35, "Squirtle", 2);
+        adicionarCopias(jogador, "Blastoise", "Água", 120, 70, "Wartortle", 2);
 
-        jogador.adicionarAoBaralho(new CartaPokemon("Psyduck", "Água", 50, 20));
-        jogador.adicionarAoBaralho(new CartaPokemon("Golduck", "Água", 90, 55, "Psyduck"));
+        adicionarCopias(jogador, "Psyduck", "Água", 50, 20, null, 3);
+        adicionarCopias(jogador, "Golduck", "Água", 90, 55, "Psyduck", 2);
 
-        jogador.adicionarAoBaralho(new CartaPokemon("Eevee", "Normal", 55, 15));
-        jogador.adicionarAoBaralho(new CartaPokemon("Vaporeon", "Água", 100, 50, "Eevee"));
-
+        adicionarCopias(jogador, "Eevee", "Normal", 55, 15, null, 3);
+        adicionarCopias(jogador, "Vaporeon", "Água", 100, 50, "Eevee", 2);
     }
 
     private static void adicionarTimeFogo(Jogador jogador) {
-        jogador.adicionarAoBaralho(new CartaPokemon("Charmander", "Fogo", 50, 15));
-        jogador.adicionarAoBaralho(new CartaPokemon("Charmeleon", "Fogo", 75, 35, "Charmander"));
-        jogador.adicionarAoBaralho(new CartaPokemon("Charizard", "Fogo", 130, 90, "Charmeleon"));
+        adicionarCopias(jogador, "Charmander", "Fogo", 50, 15, null, 3);
+        adicionarCopias(jogador, "Charmeleon", "Fogo", 75, 35, "Charmander", 2);
+        adicionarCopias(jogador, "Charizard", "Fogo", 130, 90, "Charmeleon", 2);
 
-        jogador.adicionarAoBaralho(new CartaPokemon("Growlithe", "Fogo", 55, 20));
-        jogador.adicionarAoBaralho(new CartaPokemon("Arcanine", "Fogo", 120, 75, "Growlithe"));
+        adicionarCopias(jogador, "Growlithe", "Fogo", 55, 20, null, 3);
+        adicionarCopias(jogador, "Arcanine", "Fogo", 120, 75, "Growlithe", 2);
 
-        jogador.adicionarAoBaralho(new CartaPokemon("Torchic", "Fogo", 45, 15));
-        jogador.adicionarAoBaralho(new CartaPokemon("Combusken", "Fogo", 70, 35, "Torchic"));
-        jogador.adicionarAoBaralho(new CartaPokemon("Blaziken", "Fogo", 125, 85, "Combusken"));
+        adicionarCopias(jogador, "Torchic", "Fogo", 45, 15, null, 3);
+        adicionarCopias(jogador, "Combusken", "Fogo", 70, 35, "Torchic", 2);
+        adicionarCopias(jogador, "Blaziken", "Fogo", 125, 85, "Combusken", 2);
 
-        jogador.adicionarAoBaralho(new CartaPokemon("Chimchar", "Fogo", 45, 15));
-        jogador.adicionarAoBaralho(new CartaPokemon("Monferno", "Fogo", 70, 35, "Chimchar"));
-        jogador.adicionarAoBaralho(new CartaPokemon("Infernape", "Fogo", 115, 80, "Monferno"));
+        adicionarCopias(jogador, "Chimchar", "Fogo", 45, 15, null, 3);
+        adicionarCopias(jogador, "Monferno", "Fogo", 70, 35, "Chimchar", 2);
+        adicionarCopias(jogador, "Infernape", "Fogo", 115, 80, "Monferno", 2);
 
-        jogador.adicionarAoBaralho(new CartaPokemon("Entei", "Fogo", 120, 70)); // Lendário, não evolui
-
+        adicionarCopias(jogador, "Entei", "Fogo", 120, 70, null, 1); // Lendário, não evolui, cópia única
     }
 
     private static void adicionarTimePlanta(Jogador jogador) {
-        jogador.adicionarAoBaralho(new CartaPokemon("Bulbasaur", "Planta", 55, 15));
-        jogador.adicionarAoBaralho(new CartaPokemon("Ivysaur", "Planta", 80, 35, "Bulbasaur"));
-        jogador.adicionarAoBaralho(new CartaPokemon("Venusaur", "Planta", 130, 80, "Ivysaur"));
+        adicionarCopias(jogador, "Bulbasaur", "Planta", 55, 15, null, 3);
+        adicionarCopias(jogador, "Ivysaur", "Planta", 80, 35, "Bulbasaur", 2);
+        adicionarCopias(jogador, "Venusaur", "Planta", 130, 80, "Ivysaur", 2);
 
-        jogador.adicionarAoBaralho(new CartaPokemon("Chikorita", "Planta", 50, 15)); // ainda não tem evolução na mão
-        jogador.adicionarAoBaralho(new CartaPokemon("Treecko", "Planta", 45, 15));   // ainda não tem evolução na mão
-        jogador.adicionarAoBaralho(new CartaPokemon("Rowlet", "Planta", 45, 10));    // ainda não tem evolução na mão
+        adicionarCopias(jogador, "Chikorita", "Planta", 50, 15, null, 4); // ainda não tem evolução no baralho
+        adicionarCopias(jogador, "Treecko", "Planta", 45, 15, null, 4);   // ainda não tem evolução no baralho
+        adicionarCopias(jogador, "Rowlet", "Planta", 45, 10, null, 4);    // ainda não tem evolução no baralho
 
-        jogador.adicionarAoBaralho(new CartaPokemon("Celebi", "Planta", 100, 60)); // Lendário, não evolui
+        adicionarCopias(jogador, "Celebi", "Planta", 100, 60, null, 1); // Lendário, não evolui, cópia única
+    }
 
+    // ---------- CARTAS DE TREINADOR ----------
+    // Independem do time escolhido — todo jogador recebe as mesmas cartas de item
+
+    private static void adicionarCartasTreinador(Jogador jogador) {
+        jogador.adicionarAoBaralho(new CartaTreinador("Poção", "Poção"));
+        jogador.adicionarAoBaralho(new CartaTreinador("Poção", "Poção"));
+        jogador.adicionarAoBaralho(new CartaTreinador("Poção", "Poção"));
+
+        jogador.adicionarAoBaralho(new CartaTreinador("Troca", "Troca"));
+        jogador.adicionarAoBaralho(new CartaTreinador("Troca", "Troca"));
     }
 }
