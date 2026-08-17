@@ -168,7 +168,8 @@ public class AppGUI {
     private void montarJanela() {
         frame = new JFrame("Pokémon TCG - Versus");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1100, 800);
+        frame.setSize(1100, 800); // tamanho usado caso o usuário desmaximize a janela depois
+        frame.setExtendedState(JFrame.MAXIMIZED_BOTH); // abre já em tela cheia (maximizada)
         frame.setLayout(new BorderLayout(0, 0));
         frame.getContentPane().setBackground(COR_FUNDO);
 
