@@ -168,7 +168,7 @@ public class AppGUI {
     private void montarJanela() {
         frame = new JFrame("Pokémon TCG - Versus");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1050, 720);
+        frame.setSize(1100, 800);
         frame.setLayout(new BorderLayout(0, 0));
         frame.getContentPane().setBackground(COR_FUNDO);
 
@@ -197,8 +197,8 @@ public class AppGUI {
 
         campoJogadorPanel = new JPanel();
         campoJogadorPanel.setBackground(COR_FUNDO);
-        campoJogadorPanel.setBorder(criarBordaTitulo("🎮 Seu Campo (clique num Pokémon pra agir)"));
-        campoJogadorPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        campoJogadorPanel.setBorder(criarBordaTitulo("🎮 Seu Campo de Batalha"));
+        campoJogadorPanel.setLayout(new BorderLayout(12, 0));
 
         maoPanel = new JPanel();
         maoPanel.setBackground(COR_FUNDO);
@@ -209,7 +209,7 @@ public class AppGUI {
         maoScroll.setBorder(BorderFactory.createEmptyBorder());
 
         centroEsquerda.add(campoJogadorPanel);
-        centroEsquerda.add(Box.createVerticalStrut(8));
+        centroEsquerda.add(Box.createVerticalStrut(28)); // desce mais a mão, separando bem do campo
         centroEsquerda.add(maoScroll);
 
         logArea = new JTextArea();
@@ -387,7 +387,17 @@ public class AppGUI {
     private void montarCampoJogador() {
         campoJogadorPanel.removeAll();
 
-        // Botão do Pokémon Ativo
+        // ---- ZONA ESQUERDA: Ativo (avançado) em cima, Banco embaixo ----
+        JPanel zonaEsquerda = new JPanel();
+        zonaEsquerda.setLayout(new BoxLayout(zonaEsquerda, BoxLayout.Y_AXIS));
+        zonaEsquerda.setBackground(COR_FUNDO);
+
+        JPanel linhaAtivo = new JPanel(new GridLayout(1, 5, 10, 6));
+        linhaAtivo.setBackground(COR_FUNDO);
+        JLabel rotuloAtivo = new JLabel("⚔️ ZONA AVANÇADA (Ativo)");
+        rotuloAtivo.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        rotuloAtivo.setForeground(COR_BANNER);
+
         CartaPokemon ativo = jogadorAtual.getPokemonAtivo();
         JButton btnAtivo = new JButton(ativo != null ? htmlPokemon("🔴 ATIVO", ativo) : htmlVazio("🔴 ATIVO"));
         estilizarBotaoCampo(btnAtivo, ativo);
@@ -396,9 +406,18 @@ public class AppGUI {
         } else {
             btnAtivo.setEnabled(false);
         }
-        campoJogadorPanel.add(btnAtivo);
 
-        // Botões do Banco (0 a 4)
+        // Grid de 5 colunas: só a 3ª (índice 2) tem o Ativo, o resto fica invisível —
+        // assim ele fica alinhado exatamente em cima do Banco 3
+        linhaAtivo.add(criarEspacoInvisivel());
+        linhaAtivo.add(criarEspacoInvisivel());
+        linhaAtivo.add(btnAtivo);
+        linhaAtivo.add(criarEspacoInvisivel());
+        linhaAtivo.add(criarEspacoInvisivel());
+
+        JPanel linhaBanco = new JPanel(new GridLayout(1, 5, 10, 6));
+        linhaBanco.setBackground(COR_FUNDO);
+
         List<CartaPokemon> banco = jogadorAtual.getBanco();
         for (int i = 0; i < 5; i++) {
             if (i < banco.size()) {
@@ -407,30 +426,106 @@ public class AppGUI {
                 estilizarBotaoCampo(btnBanco, p);
                 final int indiceBanco = i;
                 btnBanco.addActionListener(e -> abrirMenuPokemon(p, indiceBanco));
-                campoJogadorPanel.add(btnBanco);
+                linhaBanco.add(btnBanco);
             } else {
                 JButton btnVazio = new JButton(htmlVazio("🔵 BANCO " + (i + 1)));
                 estilizarBotaoCampo(btnVazio, null);
                 btnVazio.setEnabled(false);
-                campoJogadorPanel.add(btnVazio);
+                linhaBanco.add(btnVazio);
             }
         }
+
+        JLabel rotuloBanco = new JLabel("🛡️ BANCO DE RESERVAS");
+        rotuloBanco.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        rotuloBanco.setForeground(COR_BANNER);
+        rotuloBanco.setBorder(BorderFactory.createEmptyBorder(4, 12, 0, 0));
+
+        zonaEsquerda.add(rotuloAtivo);
+        zonaEsquerda.add(linhaAtivo);
+        zonaEsquerda.add(rotuloBanco);
+        zonaEsquerda.add(linhaBanco);
+
+        campoJogadorPanel.add(zonaEsquerda, BorderLayout.CENTER);
+
+        // ---- ZONA DIREITA: Baralho em cima, Zona Morta embaixo ----
+        JPanel zonaDireita = new JPanel();
+        zonaDireita.setLayout(new BoxLayout(zonaDireita, BoxLayout.Y_AXIS));
+        zonaDireita.setBackground(COR_FUNDO);
+        zonaDireita.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 10));
 
         // Monte do Baralho — só informativo (a compra é automática no início de cada turno)
         JButton btnBaralho = new JButton("<html><div style='text-align:center;'>📚 <b>BARALHO</b><br><br>"
                 + "<b style='font-size:16px;'>" + jogadorAtual.getTamanhoBaralho() + "</b><br>cartas restantes</div></html>");
-        btnBaralho.setPreferredSize(new Dimension(140, 140));
+        btnBaralho.setPreferredSize(new Dimension(150, 130));
         btnBaralho.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         btnBaralho.setBackground(new Color(84, 58, 133));
         btnBaralho.setForeground(Color.WHITE);
         btnBaralho.setOpaque(true);
         btnBaralho.setFocusPainted(false);
+        btnBaralho.setAlignmentX(Component.CENTER_ALIGNMENT);
         btnBaralho.addActionListener(e -> JOptionPane.showMessageDialog(frame,
                 "Você tem " + jogadorAtual.getTamanhoBaralho() + " carta(s) no baralho.\n\n"
                         + "A compra é automática: você puxa 1 carta sozinha no início de cada turno seu — não precisa clicar aqui pra comprar.\n\n"
                         + "⚠️ Se o baralho zerar na hora de comprar, você perde o jogo na hora!",
                 "Baralho", JOptionPane.INFORMATION_MESSAGE));
-        campoJogadorPanel.add(btnBaralho);
+
+        // Zona Morta — pilha de descarte com os Pokémon nocauteados (o último a morrer fica visível em cima)
+        List<CartaPokemon> zonaMorta = jogadorAtual.getZonaMorta();
+        JButton btnZonaMorta = new JButton(construirRotuloZonaMorta(zonaMorta));
+        btnZonaMorta.setPreferredSize(new Dimension(150, 130));
+        btnZonaMorta.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        btnZonaMorta.setBackground(new Color(66, 66, 66));
+        btnZonaMorta.setForeground(Color.WHITE);
+        btnZonaMorta.setOpaque(true);
+        btnZonaMorta.setFocusPainted(false);
+        btnZonaMorta.setAlignmentX(Component.CENTER_ALIGNMENT);
+        if (!zonaMorta.isEmpty()) {
+            ImageIcon spriteUltimoMorto = carregarSprite(zonaMorta.get(zonaMorta.size() - 1).getNome());
+            if (spriteUltimoMorto != null) {
+                btnZonaMorta.setIcon(spriteUltimoMorto);
+                btnZonaMorta.setVerticalTextPosition(SwingConstants.BOTTOM);
+                btnZonaMorta.setHorizontalTextPosition(SwingConstants.CENTER);
+            }
+        }
+        btnZonaMorta.addActionListener(e -> mostrarZonaMortaDialog(zonaMorta));
+
+        zonaDireita.add(btnBaralho);
+        zonaDireita.add(Box.createVerticalStrut(10));
+        zonaDireita.add(btnZonaMorta);
+
+        campoJogadorPanel.add(zonaDireita, BorderLayout.EAST);
+    }
+
+    private String construirRotuloZonaMorta(List<CartaPokemon> zonaMorta) {
+        if (zonaMorta.isEmpty()) {
+            return "<html><div style='text-align:center;'>☠️ <b>ZONA MORTA</b><br><br>[Vazio]</div></html>";
+        }
+        CartaPokemon ultimo = zonaMorta.get(zonaMorta.size() - 1);
+        return "<html><div style='text-align:center;'>☠️ <b>ZONA MORTA</b><br>"
+                + "<b>" + ultimo.getNome() + "</b><br>(" + zonaMorta.size() + " no total)</div></html>";
+    }
+
+    private void mostrarZonaMortaDialog(List<CartaPokemon> zonaMorta) {
+        if (zonaMorta.isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "Nenhum Pokémon seu foi nocauteado ainda!");
+            return;
+        }
+        StringBuilder sb = new StringBuilder("☠️ Pokémon nocauteados (o mais recente primeiro):\n\n");
+        for (int i = zonaMorta.size() - 1; i >= 0; i--) {
+            sb.append("• ").append(zonaMorta.get(i).getNome()).append("\n");
+        }
+        JOptionPane.showMessageDialog(frame, sb.toString(), "Zona Morta", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /**
+     * Cria um espaço vazio do mesmo tamanho de um botão de campo, usado pra alinhar
+     * o Ativo exatamente em cima do Banco 3 (mesma largura de coluna nos dois grids).
+     */
+    private JPanel criarEspacoInvisivel() {
+        JPanel espaco = new JPanel();
+        espaco.setOpaque(false);
+        espaco.setPreferredSize(new Dimension(170, 140));
+        return espaco;
     }
 
     private void estilizarBotaoCampo(JButton botao, CartaPokemon p) {
@@ -614,8 +709,12 @@ public class AppGUI {
 
     private void acaoClicarCartaTreinador(int indiceNaMao, CartaTreinador carta) {
         if (carta.getEfeito().equalsIgnoreCase("Poção")) {
-            CartaPokemon alvo = escolherPokemonEmCampoDialog("Curar qual Pokémon?");
+            CartaPokemon alvo = escolherPokemonEmCampoDialog("Curar qual Pokémon? (Poção: +30 HP)");
             if (alvo != null) jogadorAtual.usarPocao(indiceNaMao, alvo);
+
+        } else if (carta.getEfeito().equalsIgnoreCase("Cura Total")) {
+            CartaPokemon alvo = escolherPokemonEmCampoDialog("Curar qual Pokémon? (Cura Total: HP completo)");
+            if (alvo != null) jogadorAtual.usarCuraTotal(indiceNaMao, alvo);
 
         } else if (carta.getEfeito().equalsIgnoreCase("Troca")) {
             List<CartaPokemon> banco = jogadorAtual.getBanco();
@@ -632,9 +731,49 @@ public class AppGUI {
 
             int indiceBanco = nomes.indexOf(escolha);
             jogadorAtual.usarTroca(indiceNaMao, indiceBanco);
+
+        } else if (carta.getEfeito().equalsIgnoreCase("Evolução Rápida")) {
+            usarEvolucaoRapidaFluxo(indiceNaMao);
         }
 
         atualizarTela();
+    }
+
+    private void usarEvolucaoRapidaFluxo(int indiceCartaTreinador) {
+        // Passo 1: escolher qual Pokémon em campo vai evoluir
+        CartaPokemon alvo = escolherPokemonEmCampoDialog("Evolução Rápida — qual Pokémon vai evoluir?");
+        if (alvo == null) return;
+
+        // Passo 2: procurar na mão as cartas de evolução compatíveis com esse Pokémon
+        List<Carta> mao = jogadorAtual.getMao();
+        java.util.List<Integer> indicesValidos = new java.util.ArrayList<>();
+        java.util.List<String> nomesValidos = new java.util.ArrayList<>();
+
+        for (int i = 0; i < mao.size(); i++) {
+            if (mao.get(i) instanceof CartaPokemon) {
+                CartaPokemon carta = (CartaPokemon) mao.get(i);
+                if (!carta.isBasico() && carta.getEvoluiDe().equalsIgnoreCase(alvo.getNome())) {
+                    indicesValidos.add(i);
+                    nomesValidos.add(carta.getNome());
+                }
+            }
+        }
+
+        if (indicesValidos.isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "Você não tem nenhuma evolução de " + alvo.getNome() + " na mão!");
+            return;
+        }
+
+        String escolha = (String) JOptionPane.showInputDialog(
+                frame, "Evoluir " + alvo.getNome() + " para qual forma?", "Evolução Rápida",
+                JOptionPane.QUESTION_MESSAGE, null, nomesValidos.toArray(), nomesValidos.get(0)
+        );
+        if (escolha == null) return;
+
+        int posicaoNaLista = nomesValidos.indexOf(escolha);
+        int indiceCartaEvolucao = indicesValidos.get(posicaoNaLista);
+
+        jogadorAtual.usarEvolucaoRapida(indiceCartaTreinador, indiceCartaEvolucao, alvo);
     }
 
     /**
