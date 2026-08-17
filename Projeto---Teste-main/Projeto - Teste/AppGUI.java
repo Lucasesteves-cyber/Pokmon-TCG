@@ -1,4 +1,5 @@
 import javax.swing.*;
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -28,7 +29,63 @@ public class AppGUI {
     private int numeroTurno = 1;
     private boolean jogoAtivo = true;
 
+    // Cores por tipo de Pokémon, usadas nos botões pra deixar visual mais bonito
+    private static final Color COR_AGUA = new Color(66, 133, 244);
+    private static final Color COR_FOGO = new Color(230, 74, 25);
+    private static final Color COR_PLANTA = new Color(76, 175, 80);
+    private static final Color COR_NORMAL = new Color(158, 158, 158);
+    private static final Color COR_TREINADOR = new Color(255, 193, 7);
+    private static final Color COR_FUNDO = new Color(245, 247, 250);
+    private static final Color COR_BANNER = new Color(33, 33, 66);
+
+    // Cache de imagens já baixadas, pra não buscar de novo toda vez que a tela atualiza
+    private final java.util.Map<String, ImageIcon> cacheSprites = new java.util.HashMap<>();
+
+    // Número da Pokédex de cada Pokémon do jogo, usado pra montar a URL do sprite
+    private static final java.util.Map<String, Integer> POKEDEX = new java.util.HashMap<>();
+    static {
+        POKEDEX.put("Bulbasaur", 1);
+        POKEDEX.put("Ivysaur", 2);
+        POKEDEX.put("Venusaur", 3);
+        POKEDEX.put("Charmander", 4);
+        POKEDEX.put("Charmeleon", 5);
+        POKEDEX.put("Charizard", 6);
+        POKEDEX.put("Squirtle", 7);
+        POKEDEX.put("Wartortle", 8);
+        POKEDEX.put("Blastoise", 9);
+        POKEDEX.put("Psyduck", 54);
+        POKEDEX.put("Golduck", 55);
+        POKEDEX.put("Growlithe", 58);
+        POKEDEX.put("Arcanine", 59);
+        POKEDEX.put("Magikarp", 129);
+        POKEDEX.put("Gyarados", 130);
+        POKEDEX.put("Eevee", 133);
+        POKEDEX.put("Vaporeon", 134);
+        POKEDEX.put("Chikorita", 152);
+        POKEDEX.put("Entei", 244);
+        POKEDEX.put("Celebi", 251);
+        POKEDEX.put("Treecko", 252);
+        POKEDEX.put("Torchic", 255);
+        POKEDEX.put("Combusken", 256);
+        POKEDEX.put("Blaziken", 257);
+        POKEDEX.put("Chimchar", 390);
+        POKEDEX.put("Monferno", 391);
+        POKEDEX.put("Infernape", 392);
+        POKEDEX.put("Froakie", 656);
+        POKEDEX.put("Frogadier", 657);
+        POKEDEX.put("Greninja", 658);
+        POKEDEX.put("Rowlet", 722);
+    }
+
     public static void main(String[] args) {
+        // Usa o Look and Feel "Metal" pra garantir que as cores dos botões apareçam
+        // (o visual nativo do Windows às vezes ignora cor de fundo customizada em botão)
+        try {
+            UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+        } catch (Exception e) {
+            // se falhar, segue com o visual padrão mesmo
+        }
+
         SwingUtilities.invokeLater(() -> new AppGUI().iniciar());
     }
 
@@ -111,15 +168,23 @@ public class AppGUI {
     private void montarJanela() {
         frame = new JFrame("Pokémon TCG - Versus");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1000, 700);
-        frame.setLayout(new BorderLayout(8, 8));
+        frame.setSize(1050, 720);
+        frame.setLayout(new BorderLayout(0, 0));
+        frame.getContentPane().setBackground(COR_FUNDO);
 
-        // ---- TOPO: informações do turno ----
+        // ---- TOPO: banner colorido com informações do turno ----
         JPanel topoPanel = new JPanel(new GridLayout(2, 1));
+        topoPanel.setBackground(COR_BANNER);
+        topoPanel.setBorder(BorderFactory.createEmptyBorder(12, 10, 12, 10));
+
         turnoLabel = new JLabel("", SwingConstants.CENTER);
-        turnoLabel.setFont(new Font("Arial", Font.BOLD, 20));
+        turnoLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        turnoLabel.setForeground(Color.WHITE);
+
         adversarioLabel = new JLabel("", SwingConstants.CENTER);
-        adversarioLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+        adversarioLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        adversarioLabel.setForeground(new Color(200, 210, 230));
+
         topoPanel.add(turnoLabel);
         topoPanel.add(adversarioLabel);
         frame.add(topoPanel, BorderLayout.NORTH);
@@ -127,47 +192,132 @@ public class AppGUI {
         // ---- CENTRO: campo + mão (esquerda) e log (direita) ----
         JPanel centroEsquerda = new JPanel();
         centroEsquerda.setLayout(new BoxLayout(centroEsquerda, BoxLayout.Y_AXIS));
+        centroEsquerda.setBackground(COR_FUNDO);
+        centroEsquerda.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 5));
 
         campoJogadorPanel = new JPanel();
-        campoJogadorPanel.setBorder(BorderFactory.createTitledBorder("Seu Campo (clique num Pokémon pra agir)"));
-        campoJogadorPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+        campoJogadorPanel.setBackground(COR_FUNDO);
+        campoJogadorPanel.setBorder(criarBordaTitulo("🎮 Seu Campo (clique num Pokémon pra agir)"));
+        campoJogadorPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 10));
 
         maoPanel = new JPanel();
-        maoPanel.setBorder(BorderFactory.createTitledBorder("Sua Mão (clique numa carta pra jogar)"));
-        maoPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+        maoPanel.setBackground(COR_FUNDO);
+        maoPanel.setBorder(criarBordaTitulo("🃏 Sua Mão (clique numa carta pra jogar)"));
+        maoPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 10));
         JScrollPane maoScroll = new JScrollPane(maoPanel);
-        maoScroll.setPreferredSize(new Dimension(600, 220));
+        maoScroll.setPreferredSize(new Dimension(620, 240));
+        maoScroll.setBorder(BorderFactory.createEmptyBorder());
 
         centroEsquerda.add(campoJogadorPanel);
+        centroEsquerda.add(Box.createVerticalStrut(8));
         centroEsquerda.add(maoScroll);
 
         logArea = new JTextArea();
         logArea.setEditable(false);
-        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        logArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        logArea.setBackground(new Color(28, 28, 38));
+        logArea.setForeground(new Color(180, 255, 180));
+        logArea.setMargin(new Insets(8, 8, 8, 8));
         JScrollPane logScroll = new JScrollPane(logArea);
-        logScroll.setBorder(BorderFactory.createTitledBorder("Log da Partida"));
+        logScroll.setBorder(criarBordaTitulo("📜 Log da Partida"));
         logScroll.setPreferredSize(new Dimension(320, 400));
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, centroEsquerda, logScroll);
         splitPane.setResizeWeight(0.68);
+        splitPane.setBorder(BorderFactory.createEmptyBorder());
+        splitPane.setBackground(COR_FUNDO);
         frame.add(splitPane, BorderLayout.CENTER);
 
         // ---- RODAPÉ: botões de ação geral ----
-        JPanel rodapePanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JPanel rodapePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 12));
+        rodapePanel.setBackground(COR_BANNER);
 
-        JButton btnAtacar = new JButton("⚔️ Atacar");
+        JButton btnAtacar = criarBotaoAcao("⚔️ Atacar", new Color(211, 47, 47));
         btnAtacar.addActionListener(e -> acaoAtacar());
 
-        JButton btnPassar = new JButton("🏳️ Passar Turno");
+        JButton btnPassar = criarBotaoAcao("🏳️ Passar Turno", new Color(96, 125, 139));
         btnPassar.addActionListener(e -> acaoPassarTurno());
 
-        JButton btnSair = new JButton("🚪 Sair do Jogo");
+        JButton btnSair = criarBotaoAcao("🚪 Sair do Jogo", new Color(66, 66, 66));
         btnSair.addActionListener(e -> System.exit(0));
 
         rodapePanel.add(btnAtacar);
         rodapePanel.add(btnPassar);
         rodapePanel.add(btnSair);
         frame.add(rodapePanel, BorderLayout.SOUTH);
+    }
+
+    private javax.swing.border.Border criarBordaTitulo(String titulo) {
+        javax.swing.border.TitledBorder borda = BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(new Color(200, 200, 210), 1), titulo);
+        borda.setTitleFont(new Font("Segoe UI", Font.BOLD, 13));
+        borda.setTitleColor(COR_BANNER);
+        return borda;
+    }
+
+    private JButton criarBotaoAcao(String texto, Color cor) {
+        JButton botao = new JButton(texto);
+        botao.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        botao.setBackground(cor);
+        botao.setForeground(Color.WHITE);
+        botao.setOpaque(true);
+        botao.setBorderPainted(false);
+        botao.setFocusPainted(false);
+        botao.setPreferredSize(new Dimension(170, 42));
+        return botao;
+    }
+
+    /**
+     * Cor de fundo do botão de acordo com o tipo elemental do Pokémon.
+     */
+    private Color corDoTipo(String tipo) {
+        switch (tipo) {
+            case "Água": return COR_AGUA;
+            case "Fogo": return COR_FOGO;
+            case "Planta": return COR_PLANTA;
+            default: return COR_NORMAL;
+        }
+    }
+
+    /**
+     * Gera uma barrinha de HP em texto (████░░░░) proporcional ao HP atual.
+     */
+    private String barraHP(int hpAtual, int hpMaximo) {
+        int total = 10;
+        int preenchido = (int) Math.round((hpAtual / (double) hpMaximo) * total);
+        preenchido = Math.max(0, Math.min(total, preenchido));
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < total; i++) sb.append(i < preenchido ? "█" : "░");
+        return sb.toString();
+    }
+
+    /**
+     * Busca (e cacheia) a ilustração de um Pokémon a partir do nome, usando os sprites públicos
+     * do PokeAPI. Se não tiver internet ou o nome não estiver mapeado, retorna null (sem travar o jogo).
+     */
+    private ImageIcon carregarSprite(String nomePokemon) {
+        if (cacheSprites.containsKey(nomePokemon)) {
+            return cacheSprites.get(nomePokemon);
+        }
+
+        Integer numero = POKEDEX.get(nomePokemon);
+        if (numero == null) {
+            cacheSprites.put(nomePokemon, null);
+            return null;
+        }
+
+        try {
+            String url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" + numero + ".png";
+            java.awt.Image imagem = ImageIO.read(java.net.URI.create(url).toURL());
+            java.awt.Image redimensionada = imagem.getScaledInstance(64, 64, java.awt.Image.SCALE_SMOOTH);
+            ImageIcon icone = new ImageIcon(redimensionada);
+            cacheSprites.put(nomePokemon, icone);
+            return icone;
+        } catch (Exception e) {
+            // Sem internet, nome não encontrado, ou qualquer outro problema — só segue sem imagem
+            cacheSprites.put(nomePokemon, null);
+            return null;
+        }
     }
 
     private void redirecionarConsoleParaLog() {
@@ -225,7 +375,7 @@ public class AppGUI {
         turnoLabel.setText("TURNO " + numeroTurno + " — VEZ DE " + jogadorAtual.getNome().toUpperCase());
         adversarioLabel.setText("🆚 Pokémon Ativo de " + adversario.getNome() + ": "
                 + (adversario.getPokemonAtivo() != null ? adversario.getPokemonAtivo().toString() : "[Nenhum]")
-                + "   |   📚 Baralho: " + jogadorAtual.getTamanhoBaralho() + " cartas   |   🃏 Mão: " + jogadorAtual.getMao().size());
+                + "   |   🃏 Sua Mão: " + jogadorAtual.getMao().size() + " cartas");
 
         montarCampoJogador();
         montarMaoJogador();
@@ -239,8 +389,8 @@ public class AppGUI {
 
         // Botão do Pokémon Ativo
         CartaPokemon ativo = jogadorAtual.getPokemonAtivo();
-        JButton btnAtivo = new JButton("🔴 ATIVO\n" + (ativo != null ? formatarPokemon(ativo) : "[Vazio]"));
-        btnAtivo.setPreferredSize(new Dimension(160, 70));
+        JButton btnAtivo = new JButton(ativo != null ? htmlPokemon("🔴 ATIVO", ativo) : htmlVazio("🔴 ATIVO"));
+        estilizarBotaoCampo(btnAtivo, ativo);
         if (ativo != null) {
             btnAtivo.addActionListener(e -> abrirMenuPokemon(ativo, -1));
         } else {
@@ -253,23 +403,67 @@ public class AppGUI {
         for (int i = 0; i < 5; i++) {
             if (i < banco.size()) {
                 CartaPokemon p = banco.get(i);
-                JButton btnBanco = new JButton("🔵 BANCO " + (i + 1) + "\n" + formatarPokemon(p));
-                btnBanco.setPreferredSize(new Dimension(160, 70));
+                JButton btnBanco = new JButton(htmlPokemon("🔵 BANCO " + (i + 1), p));
+                estilizarBotaoCampo(btnBanco, p);
                 final int indiceBanco = i;
                 btnBanco.addActionListener(e -> abrirMenuPokemon(p, indiceBanco));
                 campoJogadorPanel.add(btnBanco);
             } else {
-                JButton btnVazio = new JButton("🔵 BANCO " + (i + 1) + "\n[Vazio]");
-                btnVazio.setPreferredSize(new Dimension(160, 70));
+                JButton btnVazio = new JButton(htmlVazio("🔵 BANCO " + (i + 1)));
+                estilizarBotaoCampo(btnVazio, null);
                 btnVazio.setEnabled(false);
                 campoJogadorPanel.add(btnVazio);
             }
         }
+
+        // Monte do Baralho — só informativo (a compra é automática no início de cada turno)
+        JButton btnBaralho = new JButton("<html><div style='text-align:center;'>📚 <b>BARALHO</b><br><br>"
+                + "<b style='font-size:16px;'>" + jogadorAtual.getTamanhoBaralho() + "</b><br>cartas restantes</div></html>");
+        btnBaralho.setPreferredSize(new Dimension(140, 140));
+        btnBaralho.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        btnBaralho.setBackground(new Color(84, 58, 133));
+        btnBaralho.setForeground(Color.WHITE);
+        btnBaralho.setOpaque(true);
+        btnBaralho.setFocusPainted(false);
+        btnBaralho.addActionListener(e -> JOptionPane.showMessageDialog(frame,
+                "Você tem " + jogadorAtual.getTamanhoBaralho() + " carta(s) no baralho.\n\n"
+                        + "A compra é automática: você puxa 1 carta sozinha no início de cada turno seu — não precisa clicar aqui pra comprar.\n\n"
+                        + "⚠️ Se o baralho zerar na hora de comprar, você perde o jogo na hora!",
+                "Baralho", JOptionPane.INFORMATION_MESSAGE));
+        campoJogadorPanel.add(btnBaralho);
     }
 
-    private String formatarPokemon(CartaPokemon p) {
-        return p.getNome() + " | HP " + p.getHpAtual() + "/" + p.getHpMaximo()
-                + " | ⚡" + p.getQuantidadeEnergias() + "/" + p.getLimiteEnergias();
+    private void estilizarBotaoCampo(JButton botao, CartaPokemon p) {
+        botao.setPreferredSize(new Dimension(170, 140));
+        botao.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        botao.setOpaque(true);
+        botao.setBorderPainted(true);
+        botao.setFocusPainted(false);
+        botao.setVerticalTextPosition(SwingConstants.BOTTOM);
+        botao.setHorizontalTextPosition(SwingConstants.CENTER);
+        if (p != null) {
+            botao.setBackground(corDoTipo(p.getTipoElemento()));
+            botao.setForeground(Color.WHITE);
+            ImageIcon sprite = carregarSprite(p.getNome());
+            if (sprite != null) botao.setIcon(sprite);
+        } else {
+            botao.setBackground(new Color(230, 230, 235));
+            botao.setForeground(new Color(120, 120, 120));
+        }
+    }
+
+    private String htmlPokemon(String cabecalho, CartaPokemon p) {
+        return "<html><div style='text-align:center; width:150px;'>"
+                + "<b>" + cabecalho + "</b><br>"
+                + "<b>" + p.getNome() + "</b><br>"
+                + barraHP(p.getHpAtual(), p.getHpMaximo()) + "<br>"
+                + "HP " + p.getHpAtual() + "/" + p.getHpMaximo() + "<br>"
+                + "⚡ " + p.getQuantidadeEnergias() + "/" + p.getLimiteEnergias()
+                + "</div></html>";
+    }
+
+    private String htmlVazio(String cabecalho) {
+        return "<html><div style='text-align:center;'><b>" + cabecalho + "</b><br>[Vazio]</div></html>";
     }
 
     private void montarMaoJogador() {
@@ -288,18 +482,36 @@ public class AppGUI {
                     continue;
                 }
 
-                String rotulo = (p.isBasico() ? "🟢 " : "✨ ") + p.getNome() + "\n" + p.getTipoElemento()
-                        + " | HP " + p.getHpMaximo() + " | Dano " + p.getDanoAtaque();
+                String rotulo = "<html><div style='text-align:center; width:130px;'>"
+                        + (p.isBasico() ? "🟢 <b>" : "✨ <b>") + p.getNome() + "</b><br>"
+                        + p.getTipoElemento() + "<br>"
+                        + "HP " + p.getHpMaximo() + " | Dano " + p.getDanoAtaque()
+                        + "</div></html>";
                 JButton btnCarta = new JButton(rotulo);
-                btnCarta.setPreferredSize(new Dimension(150, 60));
+                btnCarta.setPreferredSize(new Dimension(150, 110));
+                btnCarta.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                btnCarta.setBackground(corDoTipo(p.getTipoElemento()));
+                btnCarta.setForeground(Color.WHITE);
+                btnCarta.setOpaque(true);
+                btnCarta.setFocusPainted(false);
+                btnCarta.setVerticalTextPosition(SwingConstants.BOTTOM);
+                btnCarta.setHorizontalTextPosition(SwingConstants.CENTER);
+                ImageIcon spriteMao = carregarSprite(p.getNome());
+                if (spriteMao != null) btnCarta.setIcon(spriteMao);
                 btnCarta.addActionListener(e -> acaoClicarCartaPokemon(indice, p));
                 maoPanel.add(btnCarta);
 
             } else if (carta instanceof CartaTreinador) {
                 CartaTreinador t = (CartaTreinador) carta;
-                JButton btnCarta = new JButton("📘 " + t.getNome() + "\n[" + t.getEfeito() + "]");
-                btnCarta.setPreferredSize(new Dimension(150, 60));
-                btnCarta.setBackground(new Color(220, 235, 255));
+                String rotulo = "<html><div style='text-align:center; width:120px;'>📘 <b>"
+                        + t.getNome() + "</b><br>[" + t.getEfeito() + "]</div></html>";
+                JButton btnCarta = new JButton(rotulo);
+                btnCarta.setPreferredSize(new Dimension(150, 65));
+                btnCarta.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                btnCarta.setBackground(COR_TREINADOR);
+                btnCarta.setForeground(new Color(60, 45, 0));
+                btnCarta.setOpaque(true);
+                btnCarta.setFocusPainted(false);
                 btnCarta.addActionListener(e -> acaoClicarCartaTreinador(indice, t));
                 maoPanel.add(btnCarta);
             }
