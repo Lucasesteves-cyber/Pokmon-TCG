@@ -309,5 +309,11 @@ public class App {
 
         jogador.adicionarAoBaralho(new CartaTreinador("Troca", "Troca"));
         jogador.adicionarAoBaralho(new CartaTreinador("Troca", "Troca"));
+
+        jogador.adicionarAoBaralho(new CartaTreinador("Evolução Rápida", "Evolução Rápida"));
+        jogador.adicionarAoBaralho(new CartaTreinador("Evolução Rápida", "Evolução Rápida"));
+
+        jogador.adicionarAoBaralho(new CartaTreinador("Cura Total", "Cura Total"));
+        jogador.adicionarAoBaralho(new CartaTreinador("Cura Total", "Cura Total"));
     }
 }
