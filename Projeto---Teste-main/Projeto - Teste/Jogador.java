@@ -8,6 +8,7 @@ public class Jogador {
     private List<Carta> mao;
     private CartaPokemon pokemonAtivo;
     private List<CartaPokemon> banco;
+    private List<CartaPokemon> zonaMorta; // Pokémon nocauteados; o último a morrer fica no topo da pilha
 
     // Controle de limite de jogadas por rodada
     private boolean energiaAnexadaNestaRodada;
@@ -19,6 +20,7 @@ public class Jogador {
         this.baralho = new ArrayList<>();
         this.mao = new ArrayList<>();
         this.banco = new ArrayList<>();
+        this.zonaMorta = new ArrayList<>();
         this.pokemonAtivo = null;
         this.energiaAnexadaNestaRodada = false;
         this.atacouNestaRodada = false;
@@ -170,6 +172,15 @@ public class Jogador {
             return false;
         }
 
+        return executarEvolucao(indiceNaMao, alvoEmCampo);
+    }
+
+    /**
+     * Faz a evolução em si (validações de carta + substituição em campo). Reaproveitado tanto pela
+     * evolução normal (evoluir) quanto pela carta de Treinador "Evolução Rápida" (que ignora as
+     * restrições de turno).
+     */
+    private boolean executarEvolucao(int indiceNaMao, CartaPokemon alvoEmCampo) {
         if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
             System.out.println("Posição inválida na mão!");
             return false;
@@ -232,6 +243,39 @@ public class Jogador {
     }
 
     /**
+     * Usa a carta de Treinador "Evolução Rápida": evolui um Pokémon em campo na hora, ignorando
+     * a regra de Turno 2 e a de "1x por Pokémon por turno". Ainda precisa ter a carta de evolução
+     * certa na mão (mesma regra de linhagem — não pula estágios, tipo Froakie direto pra Greninja).
+     */
+    public boolean usarEvolucaoRapida(int indiceCartaTreinador, int indiceCartaEvolucao, CartaPokemon alvoEmCampo) {
+        if (indiceCartaTreinador < 0 || indiceCartaTreinador >= mao.size()) {
+            System.out.println("Posição inválida na mão!");
+            return false;
+        }
+
+        Carta cartaTreinador = mao.get(indiceCartaTreinador);
+        if (!(cartaTreinador instanceof CartaTreinador) || !((CartaTreinador) cartaTreinador).getEfeito().equalsIgnoreCase("Evolução Rápida")) {
+            System.out.println("Essa carta não é Evolução Rápida!");
+            return false;
+        }
+
+        // Remove a carta de evolução da mão primeiro (localizando pelo índice atual)
+        boolean sucesso = executarEvolucao(indiceCartaEvolucao, alvoEmCampo);
+        if (!sucesso) {
+            return false;
+        }
+
+        // Remove a carta de Treinador da mão (a de evolução já foi removida dentro de executarEvolucao)
+        int indiceTreinadorAtualizado = mao.indexOf(cartaTreinador);
+        if (indiceTreinadorAtualizado != -1) {
+            mao.remove(indiceTreinadorAtualizado);
+        }
+
+        System.out.println("⚡ " + nome + " usou Evolução Rápida — sem esperar turno, sem limite de vezes!");
+        return true;
+    }
+
+    /**
      * Libera novamente a evolução de todos os Pokémon deste jogador (Ativo + Banco).
      * Deve ser chamado no início do turno deste jogador.
      */
@@ -282,6 +326,7 @@ public class Jogador {
 
         if (alvo.isNocauteado()) {
             System.out.println("☠️ " + alvo.getNome() + " foi Nocauteado!");
+            oponente.zonaMorta.add(alvo); // vai pro topo da pilha da Zona Morta do dono dele
             oponente.pokemonAtivo = null;
 
             if (!oponente.banco.isEmpty()) {
@@ -393,6 +438,34 @@ public class Jogador {
         mao.remove(indiceNaMao);
 
         System.out.println("\n💊 " + nome + " usou Poção em " + alvo.getNome() + "! Curou " + CURA + " HP. ("
+                + alvo.getHpAtual() + "/" + alvo.getHpMaximo() + ")");
+        return true;
+    }
+
+    /**
+     * Usa uma carta de Cura Total da mão, restaurando o HP de um Pokémon completamente até o máximo.
+     */
+    public boolean usarCuraTotal(int indiceNaMao, CartaPokemon alvo) {
+        if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
+            System.out.println("Posição inválida na mão!");
+            return false;
+        }
+
+        Carta carta = mao.get(indiceNaMao);
+        if (!(carta instanceof CartaTreinador) || !((CartaTreinador) carta).getEfeito().equalsIgnoreCase("Cura Total")) {
+            System.out.println("Essa carta não é uma Cura Total!");
+            return false;
+        }
+
+        if (alvo == null) {
+            System.out.println("Escolha um Pokémon válido em campo para curar!");
+            return false;
+        }
+
+        alvo.curar(alvo.getHpMaximo()); // curar() já trava no máximo sozinho
+        mao.remove(indiceNaMao);
+
+        System.out.println("\n💖 " + nome + " usou Cura Total em " + alvo.getNome() + "! HP restaurado por completo. ("
                 + alvo.getHpAtual() + "/" + alvo.getHpMaximo() + ")");
         return true;
     }
@@ -543,4 +616,5 @@ public class Jogador {
     public List<Carta> getMao() { return mao; }
     public CartaPokemon getPokemonAtivo() { return pokemonAtivo; }
     public List<CartaPokemon> getBanco() { return banco; }
+    public List<CartaPokemon> getZonaMorta() { return zonaMorta; }
 }
