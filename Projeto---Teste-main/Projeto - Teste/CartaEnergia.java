@@ -1,22 +1,17 @@
-public abstract class Carta {
-    private String nome;
-    private String tipoCarta; // "Pokemon", "Energia" ou "Treinador"
+public class CartaEnergia extends Carta {
+    private String tipoElemento; // Fogo, Água, Planta, etc.
 
-    public Carta(String nome, String tipoCarta) {
-        this.nome = nome;
-        this.tipoCarta = tipoCarta;
+    public CartaEnergia(String nome, String tipoElemento) {
+        super(nome, "Energia");
+        this.tipoElemento = tipoElemento;
     }
 
-    public String getNome() {
-        return nome;
-    }
-
-    public String getTipoCarta() {
-        return tipoCarta;
+    public String getTipoElemento() {
+        return tipoElemento;
     }
 
     @Override
     public String toString() {
-        return nome + " (" + tipoCarta + ")";
+        return super.toString() + " [" + tipoElemento + "]";
     }
 }
