@@ -243,6 +243,7 @@ public class App {
         for (int i = 0; i < copias; i++) {
             if (evoluiDe == null) {
                 jogador.adicionarAoBaralho(new CartaPokemon(nome, tipo, hp, dano));
+                System.out.println("gay");
             } else {
                 jogador.adicionarAoBaralho(new CartaPokemon(nome, tipo, hp, dano, evoluiDe));
             }
