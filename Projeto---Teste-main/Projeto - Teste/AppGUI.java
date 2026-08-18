@@ -1,5 +1,11 @@
 import javax.swing.*;
 import javax.imageio.ImageIO;
+import java.awt.event.ActionListener;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.net.HttpURLConnection;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.awt.*;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -62,9 +68,13 @@ public class AppGUI {
         POKEDEX.put("Eevee", 133);
         POKEDEX.put("Vaporeon", 134);
         POKEDEX.put("Chikorita", 152);
+        POKEDEX.put("Bayleef", 153);
+        POKEDEX.put("Meganium", 154);
         POKEDEX.put("Entei", 244);
         POKEDEX.put("Celebi", 251);
         POKEDEX.put("Treecko", 252);
+        POKEDEX.put("Grovyle", 253);
+        POKEDEX.put("Sceptile", 254);
         POKEDEX.put("Torchic", 255);
         POKEDEX.put("Combusken", 256);
         POKEDEX.put("Blaziken", 257);
@@ -75,6 +85,8 @@ public class AppGUI {
         POKEDEX.put("Frogadier", 657);
         POKEDEX.put("Greninja", 658);
         POKEDEX.put("Rowlet", 722);
+        POKEDEX.put("Dartrix", 723);
+        POKEDEX.put("Decidueye", 724);
     }
 
     public static void main(String[] args) {
@@ -134,6 +146,7 @@ public class AppGUI {
             if (disponivel[0]) opcoes.add("💧 Água");
             if (disponivel[1]) opcoes.add("🔥 Fogo");
             if (disponivel[2]) opcoes.add("🌿 Planta");
+            opcoes.add("🌍 Montar Time Customizado (qualquer Pokémon Gen 1 a 4)");
 
             String escolha = (String) JOptionPane.showInputDialog(
                     frame,
@@ -159,11 +172,235 @@ public class AppGUI {
                 App.adicionarTimePlanta(jogador);
                 disponivel[2] = false;
                 return;
+            } else if (escolha.contains("Customizado")) {
+                boolean concluiu = abrirConstrutorDeTime(jogador);
+                if (concluiu) return; // se cancelou sem adicionar nada, volta pro menu de escolha
             }
         }
     }
 
-    // ---------- MONTAGEM DA JANELA ----------
+    // ---------- CONSTRUTOR DE TIME CUSTOMIZADO (Gen 1 a 4, via PokeAPI) ----------
+
+    /**
+     * Abre uma janela onde o jogador navega pelas gerações (1 a 4) e escolhe quantos Pokémon quiser
+     * pro time dele. Retorna true quando o jogador termina de verdade (clicou em Concluir com
+     * pelo menos 1 Pokémon adicionado).
+     */
+    private boolean abrirConstrutorDeTime(Jogador jogador) {
+        JDialog dialog = new JDialog((Frame) null, "Montar Time Customizado — " + jogador.getNome(), true);
+        dialog.setSize(650, 620);
+        dialog.setLocationRelativeTo(frame);
+        dialog.setLayout(new BorderLayout(8, 8));
+        dialog.getContentPane().setBackground(COR_FUNDO);
+
+        JPanel geracoesPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 8));
+        geracoesPanel.setBackground(COR_FUNDO);
+        JButton btnGen1 = new JButton("1ª Geração (1-151)");
+        JButton btnGen2 = new JButton("2ª Geração (152-251)");
+        JButton btnGen3 = new JButton("3ª Geração (252-386)");
+        JButton btnGen4 = new JButton("4ª Geração (387-493)");
+        for (JButton b : new JButton[]{btnGen1, btnGen2, btnGen3, btnGen4}) {
+            b.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            geracoesPanel.add(b);
+        }
+
+        DefaultListModel<String> modeloLista = new DefaultListModel<>();
+        JList<String> listaPokemon = new JList<>(modeloLista);
+        listaPokemon.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        JScrollPane listaScroll = new JScrollPane(listaPokemon);
+        listaScroll.setBorder(criarBordaTitulo("Selecione um Pokémon"));
+
+        JLabel statusLabel = new JLabel("Escolha uma geração pra começar a explorar.", SwingConstants.CENTER);
+        statusLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+
+        JLabel contadorLabel = new JLabel("0 Pokémon adicionados ao time.");
+        contadorLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        int[] offsetAtual = {0};
+        int[] contador = {0};
+
+        ActionListener carregarGeracao = e -> {
+            Object origem = e.getSource();
+            int offset;
+            int limite;
+            if (origem == btnGen1) { offset = 0; limite = 151; }
+            else if (origem == btnGen2) { offset = 151; limite = 100; }
+            else if (origem == btnGen3) { offset = 251; limite = 135; }
+            else { offset = 386; limite = 107; }
+
+            offsetAtual[0] = offset;
+            statusLabel.setText("⏳ Carregando lista de Pokémon...");
+            modeloLista.clear();
+
+            new Thread(() -> {
+                try {
+                    java.util.List<String> nomes = buscarNomesGeracao(offset, limite);
+                    SwingUtilities.invokeLater(() -> {
+                        for (String n : nomes) modeloLista.addElement(capitalizar(n));
+                        statusLabel.setText("✅ " + nomes.size() + " Pokémon carregados. Selecione um e clique em Adicionar.");
+                    });
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> statusLabel.setText("❌ Erro ao carregar (verifique sua internet)."));
+                }
+            }).start();
+        };
+        btnGen1.addActionListener(carregarGeracao);
+        btnGen2.addActionListener(carregarGeracao);
+        btnGen3.addActionListener(carregarGeracao);
+        btnGen4.addActionListener(carregarGeracao);
+
+        JButton btnAdicionar = new JButton("➕ Adicionar Selecionado ao Time");
+        btnAdicionar.addActionListener(e -> {
+            int indice = listaPokemon.getSelectedIndex();
+            if (indice == -1) {
+                JOptionPane.showMessageDialog(dialog, "Selecione um Pokémon na lista primeiro!");
+                return;
+            }
+            int numeroDex = offsetAtual[0] + indice + 1;
+            btnAdicionar.setEnabled(false);
+            statusLabel.setText("⏳ Buscando dados do Pokémon...");
+
+            new Thread(() -> {
+                CartaPokemon carta = buscarPokemon(numeroDex);
+                SwingUtilities.invokeLater(() -> {
+                    btnAdicionar.setEnabled(true);
+                    if (carta != null) {
+                        jogador.adicionarAoBaralho(carta);
+                        contador[0]++;
+                        contadorLabel.setText(contador[0] + " Pokémon adicionados ao time.");
+                        statusLabel.setText("✅ " + carta.getNome() + " (" + carta.getTipoElemento() + ") adicionado!"
+                                + (carta.getEvoluiDe() != null ? " Evolui de " + carta.getEvoluiDe() + "." : ""));
+                    } else {
+                        statusLabel.setText("❌ Erro ao buscar esse Pokémon. Tenta de novo.");
+                    }
+                });
+            }).start();
+        });
+
+        JButton btnConcluir = new JButton("✅ Concluir Time");
+        boolean[] concluiuComSucesso = {false};
+        btnConcluir.addActionListener(e -> {
+            if (contador[0] == 0) {
+                JOptionPane.showMessageDialog(dialog, "Adicione pelo menos 1 Pokémon antes de concluir!");
+                return;
+            }
+            concluiuComSucesso[0] = true;
+            dialog.dispose();
+        });
+
+        JPanel rodapePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 8));
+        rodapePanel.setBackground(COR_FUNDO);
+        rodapePanel.add(contadorLabel);
+        rodapePanel.add(btnAdicionar);
+        rodapePanel.add(btnConcluir);
+
+        JPanel sulPanel = new JPanel(new BorderLayout());
+        sulPanel.setBackground(COR_FUNDO);
+        sulPanel.add(statusLabel, BorderLayout.NORTH);
+        sulPanel.add(rodapePanel, BorderLayout.SOUTH);
+
+        dialog.add(geracoesPanel, BorderLayout.NORTH);
+        dialog.add(listaScroll, BorderLayout.CENTER);
+        dialog.add(sulPanel, BorderLayout.SOUTH);
+
+        dialog.setVisible(true); // bloqueia aqui até o dialog fechar (dispose)
+
+        return concluiuComSucesso[0];
+    }
+
+    /**
+     * Busca (só os nomes) da lista de Pokémon de uma geração — rápido, sem stats.
+     */
+    private java.util.List<String> buscarNomesGeracao(int offset, int limite) throws Exception {
+        String json = fetchUrl("https://pokeapi.co/api/v2/pokemon?offset=" + offset + "&limit=" + limite);
+        java.util.List<String> nomes = new java.util.ArrayList<>();
+        Matcher m = Pattern.compile("\"name\":\"([a-z0-9\\-]+)\"").matcher(json);
+        while (m.find()) nomes.add(m.group(1));
+        return nomes;
+    }
+
+    /**
+     * Busca os dados completos de 1 Pokémon (tipo, HP, dano, e de quem ele evolui) e monta a CartaPokemon.
+     * Roda em thread separada sempre — nunca chamar direto na thread da interface.
+     */
+    private CartaPokemon buscarPokemon(int numeroDex) {
+        try {
+            String jsonPokemon = fetchUrl("https://pokeapi.co/api/v2/pokemon/" + numeroDex);
+            String nome = capitalizar(extrairString(jsonPokemon, "name"));
+
+            Matcher tipoMatcher = Pattern.compile("\"type\":\\{\"name\":\"([a-z]+)\"").matcher(jsonPokemon);
+            String tipoIngles = tipoMatcher.find() ? tipoMatcher.group(1) : "normal";
+            String tipo = traduzirTipo(tipoIngles);
+
+            int hp = extrairStat(jsonPokemon, "hp");
+            int dano = extrairStat(jsonPokemon, "attack");
+            if (hp <= 0) hp = 50;
+            if (dano <= 0) dano = 20;
+
+            String jsonSpecies = fetchUrl("https://pokeapi.co/api/v2/pokemon-species/" + numeroDex);
+            Matcher evoMatcher = Pattern.compile("\"evolves_from_species\":\\{\"name\":\"([a-z0-9\\-]+)\"").matcher(jsonSpecies);
+            String evoluiDe = evoMatcher.find() ? capitalizar(evoMatcher.group(1)) : null;
+
+            return new CartaPokemon(nome, tipo, hp, dano, evoluiDe);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int extrairStat(String json, String nomeStat) {
+        Matcher m = Pattern.compile("\"base_stat\":(\\d+),\"effort\":\\d+,\"stat\":\\{\"name\":\"" + nomeStat + "\"").matcher(json);
+        return m.find() ? Integer.parseInt(m.group(1)) : 0;
+    }
+
+    private String extrairString(String json, String chave) {
+        Matcher m = Pattern.compile("\"" + chave + "\":\"([^\"]*)\"").matcher(json);
+        return m.find() ? m.group(1) : "desconhecido";
+    }
+
+    private String capitalizar(String s) {
+        if (s == null || s.isEmpty()) return s;
+        String limpo = s.replace("-", " ");
+        return limpo.substring(0, 1).toUpperCase() + limpo.substring(1);
+    }
+
+    private String traduzirTipo(String tipoIngles) {
+        switch (tipoIngles) {
+            case "water": return "Água";
+            case "fire": return "Fogo";
+            case "grass": return "Planta";
+            case "electric": return "Elétrico";
+            case "psychic": return "Psíquico";
+            case "ice": return "Gelo";
+            case "dragon": return "Dragão";
+            case "dark": return "Sombrio";
+            case "fairy": return "Fada";
+            case "fighting": return "Lutador";
+            case "flying": return "Voador";
+            case "poison": return "Veneno";
+            case "ground": return "Terra";
+            case "rock": return "Pedra";
+            case "bug": return "Inseto";
+            case "ghost": return "Fantasma";
+            case "steel": return "Aço";
+            default: return "Normal";
+        }
+    }
+
+    private String fetchUrl(String urlStr) throws Exception {
+        java.net.URL url = java.net.URI.create(urlStr).toURL();
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setConnectTimeout(8000);
+        conn.setReadTimeout(8000);
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"))) {
+            String linha;
+            while ((linha = reader.readLine()) != null) sb.append(linha);
+        }
+        return sb.toString();
+    }
+
+
 
     private void montarJanela() {
         frame = new JFrame("Pokémon TCG - Versus");
