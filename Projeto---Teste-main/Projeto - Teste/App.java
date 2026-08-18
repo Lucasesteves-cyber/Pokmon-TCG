@@ -273,8 +273,8 @@ public class App {
         adicionarCopias(jogador, "Charmeleon", "Fogo", 75, 35, "Charmander", 2);
         adicionarCopias(jogador, "Charizard", "Fogo", 130, 90, "Charmeleon", 2);
 
-        adicionarCopias(jogador, "Growlithe", "Fogo", 55, 20, null, 3);
-        adicionarCopias(jogador, "Arcanine", "Fogo", 120, 75, "Growlithe", 2);
+        adicionarCopias(jogador, "Growlithe", "Fogo", 55, 20, null, 4);
+        adicionarCopias(jogador, "Arcanine", "Fogo", 120, 75, "Growlithe", 3);
 
         adicionarCopias(jogador, "Torchic", "Fogo", 45, 15, null, 3);
         adicionarCopias(jogador, "Combusken", "Fogo", 70, 35, "Torchic", 2);
@@ -292,9 +292,17 @@ public class App {
         adicionarCopias(jogador, "Ivysaur", "Planta", 80, 35, "Bulbasaur", 2);
         adicionarCopias(jogador, "Venusaur", "Planta", 130, 80, "Ivysaur", 2);
 
-        adicionarCopias(jogador, "Chikorita", "Planta", 50, 15, null, 4); // ainda não tem evolução no baralho
-        adicionarCopias(jogador, "Treecko", "Planta", 45, 15, null, 4);   // ainda não tem evolução no baralho
-        adicionarCopias(jogador, "Rowlet", "Planta", 45, 10, null, 4);    // ainda não tem evolução no baralho
+        adicionarCopias(jogador, "Chikorita", "Planta", 50, 15, null, 3);
+        adicionarCopias(jogador, "Bayleef", "Planta", 75, 32, "Chikorita", 2);
+        adicionarCopias(jogador, "Meganium", "Planta", 125, 75, "Bayleef", 2);
+
+        adicionarCopias(jogador, "Treecko", "Planta", 45, 15, null, 3);
+        adicionarCopias(jogador, "Grovyle", "Planta", 70, 33, "Treecko", 2);
+        adicionarCopias(jogador, "Sceptile", "Planta", 120, 78, "Grovyle", 2);
+
+        adicionarCopias(jogador, "Rowlet", "Planta", 45, 10, null, 3);
+        adicionarCopias(jogador, "Dartrix", "Planta", 65, 28, "Rowlet", 2);
+        adicionarCopias(jogador, "Decidueye", "Planta", 115, 72, "Dartrix", 2);
 
         adicionarCopias(jogador, "Celebi", "Planta", 100, 60, null, 1); // Lendário, não evolui, cópia única
     }
