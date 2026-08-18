@@ -256,20 +256,33 @@ public class AppGUI {
                 JOptionPane.showMessageDialog(dialog, "Selecione um Pokémon na lista primeiro!");
                 return;
             }
+
             int numeroDex = offsetAtual[0] + indice + 1;
             btnAdicionar.setEnabled(false);
             statusLabel.setText("⏳ Buscando dados do Pokémon...");
 
             new Thread(() -> {
-                CartaPokemon carta = buscarPokemon(numeroDex);
+                CartaPokemon primeiraCopia = buscarPokemon(numeroDex);
                 SwingUtilities.invokeLater(() -> {
                     btnAdicionar.setEnabled(true);
-                    if (carta != null) {
-                        jogador.adicionarAoBaralho(carta);
-                        contador[0]++;
+                    if (primeiraCopia != null) {
+                        // Quantidade oficial: Básico = 4 cópias (máximo), Evolução = 2 cópias
+                        // (mesma regra usada nos times fixos, aplicada automaticamente aqui também)
+                        int quantidade = primeiraCopia.isBasico() ? 4 : 2;
+
+                        jogador.adicionarAoBaralho(primeiraCopia);
+                        // Cria as cópias extras a partir dos mesmos dados (sem precisar buscar de novo na internet)
+                        for (int i = 1; i < quantidade; i++) {
+                            jogador.adicionarAoBaralho(new CartaPokemon(
+                                    primeiraCopia.getNome(), primeiraCopia.getTipoElemento(),
+                                    primeiraCopia.getHpMaximo(), primeiraCopia.getDanoAtaque(),
+                                    primeiraCopia.getEvoluiDe()));
+                        }
+                        contador[0] += quantidade;
                         contadorLabel.setText(contador[0] + " Pokémon adicionados ao time.");
-                        statusLabel.setText("✅ " + carta.getNome() + " (" + carta.getTipoElemento() + ") adicionado!"
-                                + (carta.getEvoluiDe() != null ? " Evolui de " + carta.getEvoluiDe() + "." : ""));
+                        statusLabel.setText("✅ " + quantidade + "x " + primeiraCopia.getNome() + " ("
+                                + primeiraCopia.getTipoElemento() + ") adicionado(s)!"
+                                + (primeiraCopia.getEvoluiDe() != null ? " Evolui de " + primeiraCopia.getEvoluiDe() + "." : ""));
                     } else {
                         statusLabel.setText("❌ Erro ao buscar esse Pokémon. Tenta de novo.");
                     }
