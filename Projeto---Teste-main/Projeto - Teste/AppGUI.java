@@ -29,6 +29,8 @@ public class AppGUI {
     private Jogador jogador2;
     private Jogador jogadorAtual;
     private Jogador adversario;
+    private Jogador jogadorBot; // null se for modo PvP (2 jogadores humanos)
+    private boolean ehTurnoDoBot = false;
 
     private boolean jogador1PrimeiroTurno = true;
     private boolean jogador2PrimeiroTurno = true;
@@ -43,6 +45,9 @@ public class AppGUI {
     private static final Color COR_TREINADOR = new Color(255, 193, 7);
     private static final Color COR_FUNDO = new Color(245, 247, 250);
     private static final Color COR_BANNER = new Color(33, 33, 66);
+
+    // Limite oficial de cartas no baralho (igual ao tamanho dos times fixos)
+    private static final int LIMITE_BARALHO = 40;
 
     // Cache de imagens já baixadas, pra não buscar de novo toda vez que a tela atualiza
     private final java.util.Map<String, ImageIcon> cacheSprites = new java.util.HashMap<>();
@@ -102,19 +107,30 @@ public class AppGUI {
     }
 
     private void iniciar() {
-        // ---------- CRIAÇÃO DOS 2 JOGADORES (via caixas de diálogo) ----------
-        String nome1 = JOptionPane.showInputDialog(null, "Digite o nome do Treinador 1:", "Pokémon TCG - Versus", JOptionPane.QUESTION_MESSAGE);
-        if (nome1 == null || nome1.trim().isEmpty()) nome1 = "Treinador 1";
-        jogador1 = new Jogador(nome1);
-
-        String nome2 = JOptionPane.showInputDialog(null, "Digite o nome do Treinador 2:", "Pokémon TCG - Versus", JOptionPane.QUESTION_MESSAGE);
-        if (nome2 == null || nome2.trim().isEmpty()) nome2 = "Treinador 2";
-        jogador2 = new Jogador(nome2);
+        // ---------- ESCOLHA DE MODO: SOLO (vs Bot) ou PVP (2 Jogadores) ----------
+        boolean modoSolo = escolherModoDialog();
 
         boolean[] timesDisponiveis = { true, true, true }; // Água, Fogo, Planta
 
+        // ---------- JOGADOR 1 (sempre humano) ----------
+        String nome1 = JOptionPane.showInputDialog(null, "Digite o seu nome de Treinador:", "Pokémon TCG", JOptionPane.QUESTION_MESSAGE);
+        if (nome1 == null || nome1.trim().isEmpty()) nome1 = "Treinador 1";
+        jogador1 = new Jogador(nome1);
         escolherTimeDialog(jogador1, timesDisponiveis);
-        escolherTimeDialog(jogador2, timesDisponiveis);
+
+        if (modoSolo) {
+            // ---------- MODO SOLO: o Bot monta o time dele sozinho, 100% aleatório da PokeAPI ----------
+            jogador2 = new Jogador("Bot 🤖");
+            jogadorBot = jogador2;
+            construirTimeAleatorioBotComLoading(jogador2);
+        } else {
+            // ---------- MODO PVP: 2º jogador humano escolhe nome e time normalmente ----------
+            jogadorBot = null;
+            String nome2 = JOptionPane.showInputDialog(null, "Digite o nome do Treinador 2:", "Pokémon TCG - Versus", JOptionPane.QUESTION_MESSAGE);
+            if (nome2 == null || nome2.trim().isEmpty()) nome2 = "Treinador 2";
+            jogador2 = new Jogador(nome2);
+            escolherTimeDialog(jogador2, timesDisponiveis);
+        }
 
         App.adicionarCartasTreinador(jogador1);
         App.adicionarCartasTreinador(jogador2);
@@ -139,6 +155,83 @@ public class AppGUI {
     }
 
     // ---------- ESCOLHA DE TIME (janela de diálogo) ----------
+
+    // ---------- ESCOLHA DE MODO (Solo vs Bot / PvP) ----------
+
+    private boolean escolherModoDialog() {
+        Object[] opcoes = { "🎮 Solo (vs Bot)", "👥 PvP (2 Jogadores)" };
+        int escolha = JOptionPane.showOptionDialog(
+                null,
+                "Como você quer jogar?",
+                "Pokémon TCG",
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                opcoes,
+                opcoes[0]
+        );
+        return escolha == 0; // 0 = Solo, qualquer outra coisa (inclusive fechar) = PvP
+    }
+
+    // ---------- MONTAGEM DO TIME DO BOT (100% aleatório, via PokeAPI) ----------
+
+    /**
+     * Mostra uma telinha de carregamento enquanto o Bot monta o time dele em segundo plano,
+     * sorteando Pokémon aleatórios da PokeAPI (Gen 1 a 4) até bater o limite do baralho.
+     */
+    private void construirTimeAleatorioBotComLoading(Jogador bot) {
+        JDialog carregando = new JDialog((Frame) null, "Aguarde...", true);
+        carregando.setSize(400, 140);
+        carregando.setLocationRelativeTo(null);
+        carregando.setLayout(new BorderLayout(10, 10));
+        carregando.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE); // não deixa fechar no meio do processo
+
+        JLabel mensagem = new JLabel("🤖 O Bot está sorteando o time dele na PokeAPI...", SwingConstants.CENTER);
+        mensagem.setBorder(BorderFactory.createEmptyBorder(15, 10, 5, 10));
+        JProgressBar barra = new JProgressBar();
+        barra.setIndeterminate(true);
+
+        carregando.add(mensagem, BorderLayout.CENTER);
+        carregando.add(barra, BorderLayout.SOUTH);
+
+        new Thread(() -> {
+            construirTimeAleatorioBot(bot);
+            SwingUtilities.invokeLater(carregando::dispose);
+        }).start();
+
+        carregando.setVisible(true); // bloqueia aqui (modal) até o dispose() lá de cima
+    }
+
+    /**
+     * Sorteia números de Pokédex (1 a 493, Gen 1-4) até o baralho do Bot bater o limite oficial,
+     * usando a mesma regra de cópias dos jogadores humanos (Básico = 4, Evolução = 2).
+     */
+    private void construirTimeAleatorioBot(Jogador bot) {
+        java.util.Random sorteio = new java.util.Random();
+        int tentativasSemSucesso = 0;
+
+        while (bot.getTamanhoBaralho() < LIMITE_BARALHO && tentativasSemSucesso < 30) {
+            int numeroDex = 1 + sorteio.nextInt(493);
+            CartaPokemon carta = buscarPokemon(numeroDex);
+
+            if (carta == null) {
+                tentativasSemSucesso++;
+                continue;
+            }
+
+            int quantidade = carta.isBasico() ? 4 : 2;
+            int espacoRestante = LIMITE_BARALHO - bot.getTamanhoBaralho();
+            if (quantidade > espacoRestante) quantidade = espacoRestante;
+            if (quantidade <= 0) break;
+
+            bot.adicionarAoBaralho(carta);
+            for (int i = 1; i < quantidade; i++) {
+                bot.adicionarAoBaralho(new CartaPokemon(carta.getNome(), carta.getTipoElemento(),
+                        carta.getHpMaximo(), carta.getDanoAtaque(), carta.getEvoluiDe()));
+            }
+            tentativasSemSucesso = 0;
+        }
+    }
 
     private void escolherTimeDialog(Jogador jogador, boolean[] disponivel) {
         while (true) {
@@ -257,6 +350,12 @@ public class AppGUI {
                 return;
             }
 
+            if (contador[0] >= LIMITE_BARALHO) {
+                JOptionPane.showMessageDialog(dialog, "⚠️ Seu time já está no limite de " + LIMITE_BARALHO
+                        + " cartas! Não é possível adicionar mais Pokémon.");
+                return;
+            }
+
             int numeroDex = offsetAtual[0] + indice + 1;
             btnAdicionar.setEnabled(false);
             statusLabel.setText("⏳ Buscando dados do Pokémon...");
@@ -264,11 +363,22 @@ public class AppGUI {
             new Thread(() -> {
                 CartaPokemon primeiraCopia = buscarPokemon(numeroDex);
                 SwingUtilities.invokeLater(() -> {
-                    btnAdicionar.setEnabled(true);
+                    btnAdicionar.setEnabled(contador[0] < LIMITE_BARALHO);
                     if (primeiraCopia != null) {
                         // Quantidade oficial: Básico = 4 cópias (máximo), Evolução = 2 cópias
                         // (mesma regra usada nos times fixos, aplicada automaticamente aqui também)
                         int quantidade = primeiraCopia.isBasico() ? 4 : 2;
+
+                        // Não deixa passar do limite de 40 — corta a quantidade se precisar
+                        int espacoRestante = LIMITE_BARALHO - contador[0];
+                        if (quantidade > espacoRestante) {
+                            quantidade = espacoRestante;
+                        }
+
+                        if (quantidade <= 0) {
+                            statusLabel.setText("⚠️ Não há mais espaço no time (limite de " + LIMITE_BARALHO + " cartas).");
+                            return;
+                        }
 
                         jogador.adicionarAoBaralho(primeiraCopia);
                         // Cria as cópias extras a partir dos mesmos dados (sem precisar buscar de novo na internet)
@@ -279,11 +389,13 @@ public class AppGUI {
                                     primeiraCopia.getEvoluiDe()));
                         }
                         contador[0] += quantidade;
-                        contadorLabel.setText(contador[0] + " Pokémon adicionados ao time.");
+                        contadorLabel.setText(contador[0] + " / " + LIMITE_BARALHO + " Pokémon adicionados ao time.");
                         statusLabel.setText("✅ " + quantidade + "x " + primeiraCopia.getNome() + " ("
                                 + primeiraCopia.getTipoElemento() + ") adicionado(s)!"
                                 + (primeiraCopia.getEvoluiDe() != null ? " Evolui de " + primeiraCopia.getEvoluiDe() + "." : ""));
+                        btnAdicionar.setEnabled(contador[0] < LIMITE_BARALHO);
                     } else {
+                        btnAdicionar.setEnabled(true);
                         statusLabel.setText("❌ Erro ao buscar esse Pokémon. Tenta de novo.");
                     }
                 });
@@ -600,7 +712,15 @@ public class AppGUI {
         }
 
         jogadorAtual.resetarEvolucoesDoTurno();
+        ehTurnoDoBot = (jogadorBot != null && jogadorAtual == jogadorBot);
         atualizarTela();
+
+        if (ehTurnoDoBot) {
+            // Dá uma pequena pausa antes do Bot jogar, só pra dar tempo de ver a tela mudar
+            Timer timer = new Timer(1200, e -> executarTurnoBot());
+            timer.setRepeats(false);
+            timer.start();
+        }
     }
 
     private void trocarTurno() {
@@ -609,6 +729,84 @@ public class AppGUI {
         adversario = troca;
         numeroTurno++;
         iniciarTurno();
+    }
+
+    // ---------- "IA" DO BOT (regras simples, sem clique nenhum) ----------
+
+    private void executarTurnoBot() {
+        if (!jogoAtivo) return;
+
+        Jogador bot = jogadorAtual;
+        Jogador oponenteDoBot = adversario;
+
+        // 1) Se não tem Ativo, bota um Básico da mão
+        if (bot.getPokemonAtivo() == null) {
+            int indiceBasico = encontrarIndiceBasicoNaMao(bot);
+            if (indiceBasico != -1) {
+                bot.colocarPokemonEmCampo(indiceBasico, 0);
+            }
+        }
+
+        // 2) Enche o Banco com quantos Básicos puder
+        int indiceBasico = encontrarIndiceBasicoNaMao(bot);
+        while (indiceBasico != -1 && bot.getBanco().size() < 5) {
+            bot.colocarPokemonEmCampo(indiceBasico, 1);
+            indiceBasico = encontrarIndiceBasicoNaMao(bot);
+        }
+
+        // 3) Tenta evoluir o Ativo, se tiver uma evolução disponível na mão
+        if (bot.getPokemonAtivo() != null) {
+            int indiceEvolucao = encontrarIndiceEvolucaoParaAlvo(bot, bot.getPokemonAtivo());
+            if (indiceEvolucao != -1) {
+                bot.evoluir(indiceEvolucao, bot.getPokemonAtivo(), numeroTurno);
+            }
+        }
+
+        // 4) Anexa energia no Ativo
+        if (bot.getPokemonAtivo() != null) {
+            bot.anexarEnergia(bot.getPokemonAtivo());
+        }
+
+        atualizarTela();
+
+        // 5) Se o Ativo tem energia suficiente, ataca (isso encerra o turno automaticamente)
+        if (bot.getPokemonAtivo() != null && bot.getPokemonAtivo().getQuantidadeEnergias() >= 1) {
+            boolean atacou = bot.atacar(oponenteDoBot);
+            if (atacou) {
+                bot.encerrarRodada();
+                System.out.println("🤖 " + bot.getNome() + " encerrou o turno após atacar.");
+                trocarTurno();
+                return;
+            }
+        }
+
+        // 6) Se não deu pra atacar por algum motivo, só passa o turno
+        bot.encerrarRodada();
+        System.out.println("🤖 " + bot.getNome() + " passou o turno.");
+        trocarTurno();
+    }
+
+    private int encontrarIndiceBasicoNaMao(Jogador jogador) {
+        List<Carta> mao = jogador.getMao();
+        for (int i = 0; i < mao.size(); i++) {
+            if (mao.get(i) instanceof CartaPokemon && ((CartaPokemon) mao.get(i)).isBasico()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int encontrarIndiceEvolucaoParaAlvo(Jogador jogador, CartaPokemon alvo) {
+        List<Carta> mao = jogador.getMao();
+        for (int i = 0; i < mao.size(); i++) {
+            if (mao.get(i) instanceof CartaPokemon) {
+                CartaPokemon carta = (CartaPokemon) mao.get(i);
+                if (!carta.isBasico() && carta.getEvoluiDe().equalsIgnoreCase(alvo.getNome())) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
     private void encerrarJogoComDerrota(Jogador perdedor, Jogador vencedor) {
@@ -867,6 +1065,7 @@ public class AppGUI {
     // ---------- AÇÕES: CLIQUE NUM POKÉMON EM CAMPO ----------
 
     private void abrirMenuPokemon(CartaPokemon pokemon, int indiceBanco) {
+        if (ehTurnoDoBot) return;
         boolean ehAtivo = (indiceBanco == -1);
 
         java.util.List<String> opcoes = new java.util.ArrayList<>();
@@ -933,6 +1132,7 @@ public class AppGUI {
     // ---------- AÇÕES: CLIQUE NUMA CARTA DA MÃO ----------
 
     private void acaoClicarCartaPokemon(int indiceNaMao, CartaPokemon carta) {
+        if (ehTurnoDoBot) return;
         if (!carta.isBasico()) {
             JOptionPane.showMessageDialog(frame,
                     "⚠️ " + carta.getNome() + " é uma evolução! Clique no Pokémon em campo (não na carta da mão) pra evoluir.");
@@ -959,6 +1159,7 @@ public class AppGUI {
     }
 
     private void acaoClicarCartaTreinador(int indiceNaMao, CartaTreinador carta) {
+        if (ehTurnoDoBot) return;
         if (carta.getEfeito().equalsIgnoreCase("Poção")) {
             CartaPokemon alvo = escolherPokemonEmCampoDialog("Curar qual Pokémon? (Poção: +30 HP)");
             if (alvo != null) jogadorAtual.usarPocao(indiceNaMao, alvo);
@@ -1058,6 +1259,7 @@ public class AppGUI {
     // ---------- AÇÕES: BOTÕES DE RODAPÉ ----------
 
     private void acaoAtacar() {
+        if (ehTurnoDoBot) return;
         boolean sucesso = jogadorAtual.atacar(adversario);
         if (sucesso) {
             jogadorAtual.encerrarRodada();
@@ -1069,6 +1271,7 @@ public class AppGUI {
     }
 
     private void acaoPassarTurno() {
+        if (ehTurnoDoBot) return;
         jogadorAtual.encerrarRodada();
         trocarTurno();
     }
