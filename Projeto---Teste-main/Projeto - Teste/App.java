@@ -251,53 +251,53 @@ public class App {
 
     static void adicionarTimeAgua(Jogador jogador) {
         adicionarCopias(jogador, "Froakie", "Água", 40, 10, null, 4);
-        adicionarCopias(jogador, "Frogadier", "Água", 65, 30, "Froakie", 4);
-        adicionarCopias(jogador, "Greninja", "Água", 90, 60, "Frogadier", 3);
+        adicionarCopias(jogador, "Frogadier", "Água", 65, 30, "Froakie", 3);
+        adicionarCopias(jogador, "Greninja", "Água", 90, 60, "Frogadier", 2);
 
         adicionarCopias(jogador, "Magikarp", "Água", 30, 5, null, 4);
-        adicionarCopias(jogador, "Gyarados", "Água", 130, 80, "Magikarp", 3);
+        adicionarCopias(jogador, "Gyarados", "Água", 130, 80, "Magikarp", 2);
 
         adicionarCopias(jogador, "Squirtle", "Água", 50, 15, null, 4);
-        adicionarCopias(jogador, "Wartortle", "Água", 80, 35, "Squirtle", 4);
+        adicionarCopias(jogador, "Wartortle", "Água", 80, 35, "Squirtle", 3);
         adicionarCopias(jogador, "Blastoise", "Água", 120, 70, "Wartortle", 4);
 
         adicionarCopias(jogador, "Psyduck", "Água", 50, 20, null, 4);
         adicionarCopias(jogador, "Golduck", "Água", 90, 55, "Psyduck", 4);
 
         adicionarCopias(jogador, "Eevee", "Normal", 55, 15, null, 4);
-        adicionarCopias(jogador, "Vaporeon", "Água", 100, 50, "Eevee", 3);
+        adicionarCopias(jogador, "Vaporeon", "Água", 100, 50, "Eevee", 2);
     }
 
     static void adicionarTimeFogo(Jogador jogador) {
         adicionarCopias(jogador, "Charmander", "Fogo", 50, 15, null, 4);
-        adicionarCopias(jogador, "Charmeleon", "Fogo", 75, 35, "Charmander", 4);
-        adicionarCopias(jogador, "Charizard", "Fogo", 130, 90, "Charmeleon", 4);
+        adicionarCopias(jogador, "Charmeleon", "Fogo", 75, 35, "Charmander", 3);
+        adicionarCopias(jogador, "Charizard", "Fogo", 130, 90, "Charmeleon", 3);
 
         adicionarCopias(jogador, "Growlithe", "Fogo", 55, 20, null, 4);
-        adicionarCopias(jogador, "Arcanine", "Fogo", 120, 75, "Growlithe", 3);
+        adicionarCopias(jogador, "Arcanine", "Fogo", 120, 75, "Growlithe", 2);
 
         adicionarCopias(jogador, "Torchic", "Fogo", 45, 15, null, 4);
         adicionarCopias(jogador, "Combusken", "Fogo", 70, 35, "Torchic", 4);
-        adicionarCopias(jogador, "Blaziken", "Fogo", 125, 85, "Combusken", 4);
+        adicionarCopias(jogador, "Blaziken", "Fogo", 125, 85, "Combusken", 3);
 
         adicionarCopias(jogador, "Chimchar", "Fogo", 45, 15, null, 4);
         adicionarCopias(jogador, "Monferno", "Fogo", 70, 35, "Chimchar", 4);
-        adicionarCopias(jogador, "Infernape", "Fogo", 115, 80, "Monferno", 4);
+        adicionarCopias(jogador, "Infernape", "Fogo", 115, 80, "Monferno", 3);
 
         adicionarCopias(jogador, "Entei", "Fogo", 120, 70, null, 2); // Lendário, não evolui, raro (2 cópias)
     }
 
     static void adicionarTimePlanta(Jogador jogador) {
         adicionarCopias(jogador, "Bulbasaur", "Planta", 55, 15, null, 4);
-        adicionarCopias(jogador, "Ivysaur", "Planta", 80, 35, "Bulbasaur", 4);
-        adicionarCopias(jogador, "Venusaur", "Planta", 130, 80, "Ivysaur", 3);
+        adicionarCopias(jogador, "Ivysaur", "Planta", 80, 35, "Bulbasaur", 3);
+        adicionarCopias(jogador, "Venusaur", "Planta", 130, 80, "Ivysaur", 2);
 
         adicionarCopias(jogador, "Chikorita", "Planta", 50, 15, null, 4);
-        adicionarCopias(jogador, "Bayleef", "Planta", 75, 32, "Chikorita", 4);
-        adicionarCopias(jogador, "Meganium", "Planta", 125, 75, "Bayleef", 3);
+        adicionarCopias(jogador, "Bayleef", "Planta", 75, 32, "Chikorita", 3);
+        adicionarCopias(jogador, "Meganium", "Planta", 125, 75, "Bayleef", 2);
 
         adicionarCopias(jogador, "Treecko", "Planta", 45, 15, null, 4);
-        adicionarCopias(jogador, "Grovyle", "Planta", 70, 33, "Treecko", 4);
+        adicionarCopias(jogador, "Grovyle", "Planta", 70, 33, "Treecko", 3);
         adicionarCopias(jogador, "Sceptile", "Planta", 120, 78, "Grovyle", 3);
 
         adicionarCopias(jogador, "Rowlet", "Planta", 45, 10, null, 4);
