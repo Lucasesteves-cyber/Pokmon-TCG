@@ -52,6 +52,10 @@ public class AppGUI {
     // Cache de imagens já baixadas, pra não buscar de novo toda vez que a tela atualiza
     private final java.util.Map<String, ImageIcon> cacheSprites = new java.util.HashMap<>();
 
+    // Cache separado pra lista de seleção do construtor customizado (indexado por número da Pokédex)
+    private final java.util.Map<Integer, ImageIcon> cacheSpritesPorNumero = new java.util.HashMap<>();
+    private final java.util.Set<Integer> spritesCarregandoAgora = new java.util.HashSet<>();
+
     // Número da Pokédex de cada Pokémon do jogo, usado pra montar a URL do sprite
     private static final java.util.Map<String, Integer> POKEDEX = new java.util.HashMap<>();
     static {
@@ -300,6 +304,7 @@ public class AppGUI {
         DefaultListModel<String> modeloLista = new DefaultListModel<>();
         JList<String> listaPokemon = new JList<>(modeloLista);
         listaPokemon.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        listaPokemon.setFixedCellHeight(38);
         JScrollPane listaScroll = new JScrollPane(listaPokemon);
         listaScroll.setBorder(criarBordaTitulo("Selecione um Pokémon"));
 
@@ -311,6 +316,20 @@ public class AppGUI {
 
         int[] offsetAtual = {0};
         int[] contador = {0};
+
+        // Renderiza cada item da lista com a ilustração do Pokémon (carregada aos poucos, em segundo plano)
+        listaPokemon.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                                                            boolean isSelected, boolean cellHasFocus) {
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                int numeroDex = offsetAtual[0] + index + 1;
+                label.setText("#" + numeroDex + "  " + value);
+                label.setIcon(obterSpriteParaLista(numeroDex, listaPokemon));
+                label.setIconTextGap(10);
+                return label;
+            }
+        });
 
         ActionListener carregarGeracao = e -> {
             Object origem = e.getSource();
@@ -358,46 +377,48 @@ public class AppGUI {
 
             int numeroDex = offsetAtual[0] + indice + 1;
             btnAdicionar.setEnabled(false);
-            statusLabel.setText("⏳ Buscando dados do Pokémon...");
+            statusLabel.setText("⏳ Buscando linha evolutiva completa...");
 
             new Thread(() -> {
-                CartaPokemon primeiraCopia = buscarPokemon(numeroDex);
+                java.util.List<CartaPokemon> linhaCompleta = buscarLinhaCompleta(numeroDex);
                 SwingUtilities.invokeLater(() -> {
-                    btnAdicionar.setEnabled(contador[0] < LIMITE_BARALHO);
-                    if (primeiraCopia != null) {
+                    if (linhaCompleta.isEmpty()) {
+                        btnAdicionar.setEnabled(true);
+                        statusLabel.setText("❌ Erro ao buscar esse Pokémon. Tenta de novo.");
+                        return;
+                    }
+
+                    StringBuilder resumo = new StringBuilder();
+                    for (CartaPokemon carta : linhaCompleta) {
+                        if (contador[0] >= LIMITE_BARALHO) break;
+
                         // Quantidade oficial: Básico = 4 cópias (máximo), Evolução = 2 cópias
-                        // (mesma regra usada nos times fixos, aplicada automaticamente aqui também)
-                        int quantidade = primeiraCopia.isBasico() ? 4 : 2;
+                        int quantidade = carta.isBasico() ? 4 : 2;
 
                         // Não deixa passar do limite de 40 — corta a quantidade se precisar
                         int espacoRestante = LIMITE_BARALHO - contador[0];
-                        if (quantidade > espacoRestante) {
-                            quantidade = espacoRestante;
-                        }
+                        if (quantidade > espacoRestante) quantidade = espacoRestante;
+                        if (quantidade <= 0) break;
 
-                        if (quantidade <= 0) {
-                            statusLabel.setText("⚠️ Não há mais espaço no time (limite de " + LIMITE_BARALHO + " cartas).");
-                            return;
-                        }
-
-                        jogador.adicionarAoBaralho(primeiraCopia);
+                        jogador.adicionarAoBaralho(carta);
                         // Cria as cópias extras a partir dos mesmos dados (sem precisar buscar de novo na internet)
                         for (int i = 1; i < quantidade; i++) {
                             jogador.adicionarAoBaralho(new CartaPokemon(
-                                    primeiraCopia.getNome(), primeiraCopia.getTipoElemento(),
-                                    primeiraCopia.getHpMaximo(), primeiraCopia.getDanoAtaque(),
-                                    primeiraCopia.getEvoluiDe()));
+                                    carta.getNome(), carta.getTipoElemento(),
+                                    carta.getHpMaximo(), carta.getDanoAtaque(), carta.getEvoluiDe()));
                         }
                         contador[0] += quantidade;
-                        contadorLabel.setText(contador[0] + " / " + LIMITE_BARALHO + " Pokémon adicionados ao time.");
-                        statusLabel.setText("✅ " + quantidade + "x " + primeiraCopia.getNome() + " ("
-                                + primeiraCopia.getTipoElemento() + ") adicionado(s)!"
-                                + (primeiraCopia.getEvoluiDe() != null ? " Evolui de " + primeiraCopia.getEvoluiDe() + "." : ""));
-                        btnAdicionar.setEnabled(contador[0] < LIMITE_BARALHO);
-                    } else {
-                        btnAdicionar.setEnabled(true);
-                        statusLabel.setText("❌ Erro ao buscar esse Pokémon. Tenta de novo.");
+                        resumo.append(quantidade).append("x ").append(carta.getNome()).append(", ");
                     }
+
+                    contadorLabel.setText(contador[0] + " / " + LIMITE_BARALHO + " Pokémon adicionados ao time.");
+                    if (resumo.length() > 0) {
+                        resumo.setLength(resumo.length() - 2); // tira a última vírgula
+                        statusLabel.setText("✅ Linha completa adicionada: " + resumo);
+                    } else {
+                        statusLabel.setText("⚠️ Não havia mais espaço no time (limite de " + LIMITE_BARALHO + " cartas).");
+                    }
+                    btnAdicionar.setEnabled(contador[0] < LIMITE_BARALHO);
                 });
             }).start();
         });
@@ -470,6 +491,47 @@ public class AppGUI {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Descobre o número da Pokédex de quem esse Pokémon evolui (ou -1 se ele já for a forma Básica).
+     */
+    private int buscarNumeroPreEvolucao(int numeroDex) {
+        try {
+            String jsonSpecies = fetchUrl("https://pokeapi.co/api/v2/pokemon-species/" + numeroDex);
+            Matcher m = Pattern.compile(
+                    "\"evolves_from_species\":\\{\"name\":\"[a-z0-9\\-]+\",\"url\":\"https://pokeapi\\.co/api/v2/pokemon-species/(\\d+)/\""
+            ).matcher(jsonSpecies);
+            if (m.find()) {
+                return Integer.parseInt(m.group(1));
+            }
+        } catch (Exception e) {
+            // sem sorte, segue sem pré-evolução
+        }
+        return -1;
+    }
+
+    /**
+     * Busca a linha evolutiva COMPLETA a partir de qualquer forma escolhida — sobe até achar
+     * a forma Básica, pra garantir que a carta escolhida sempre seja jogável de verdade.
+     * Retorna a lista já ordenada: Básica primeiro, forma escolhida por último.
+     */
+    private java.util.List<CartaPokemon> buscarLinhaCompleta(int numeroDexEscolhido) {
+        java.util.List<CartaPokemon> cadeia = new java.util.ArrayList<>();
+        java.util.List<Integer> numerosJaVistos = new java.util.ArrayList<>(); // evita loop infinito por segurança
+
+        int numeroAtual = numeroDexEscolhido;
+        while (numeroAtual != -1 && !numerosJaVistos.contains(numeroAtual)) {
+            numerosJaVistos.add(numeroAtual);
+
+            CartaPokemon carta = buscarPokemon(numeroAtual);
+            if (carta == null) break;
+
+            cadeia.add(0, carta); // insere no início, pra ficar Básico -> ... -> escolhido
+            numeroAtual = buscarNumeroPreEvolucao(numeroAtual);
+        }
+
+        return cadeia;
     }
 
     private int extrairStat(String json, String nomeStat) {
@@ -682,6 +744,45 @@ public class AppGUI {
             return null;
         }
     }
+
+    /**
+     * Versão usada pela lista do construtor customizado: busca o sprite direto pelo número da Pokédex
+     * (não pelo nome), já que ali cobrimos os 493 Pokémon e não só os ~31 do mapa POKEDEX.
+     * Carrega em segundo plano (thread separada) pra não travar a lista, e chama list.repaint()
+     * quando terminar — por isso, na primeira vez que o item aparece, ele pode surgir sem ícone
+     * por um instante e a imagem "encaixa" logo em seguida.
+     */
+    private ImageIcon obterSpriteParaLista(int numeroDex, JList<String> lista) {
+        if (cacheSpritesPorNumero.containsKey(numeroDex)) {
+            return cacheSpritesPorNumero.get(numeroDex);
+        }
+
+        if (!spritesCarregandoAgora.contains(numeroDex)) {
+            spritesCarregandoAgora.add(numeroDex);
+
+            new Thread(() -> {
+                ImageIcon icone = null;
+                try {
+                    String url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" + numeroDex + ".png";
+                    java.awt.Image imagem = ImageIO.read(java.net.URI.create(url).toURL());
+                    java.awt.Image redimensionada = imagem.getScaledInstance(32, 32, java.awt.Image.SCALE_SMOOTH);
+                    icone = new ImageIcon(redimensionada);
+                } catch (Exception e) {
+                    icone = null; // sem sorte, segue sem imagem nesse item
+                }
+
+                ImageIcon iconeFinal = icone;
+                SwingUtilities.invokeLater(() -> {
+                    cacheSpritesPorNumero.put(numeroDex, iconeFinal);
+                    spritesCarregandoAgora.remove(numeroDex);
+                    lista.repaint();
+                });
+            }).start();
+        }
+
+        return null; // enquanto carrega, mostra sem ícone (aparece assim que o repaint acontecer)
+    }
+
 
     private void redirecionarConsoleParaLog() {
         PrintStream logStream = new PrintStream(new OutputStream() {
