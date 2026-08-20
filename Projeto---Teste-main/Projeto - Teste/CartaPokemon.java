@@ -10,6 +10,7 @@ public class CartaPokemon extends Carta {
     private String evoluiDe; // nome do Pokémon que precisa estar em campo para evoluir para este. null = forma Básica
     private int limiteEnergias; // capacidade máxima de energias que esse Pokémon aguenta (sorteado entre 6 e 8)
     private boolean evoluiuNesteTurno; // trava a evolução desse Pokémon específico até o próximo turno dele
+    private int numeroDex = -1; // número na Pokédex nacional (só é preenchido quando vem da PokeAPI, senão fica -1)
 
     // Construtor para Pokémon Básico (não evolui de nada)
     public CartaPokemon(String nome, String tipoElemento, int hpMaximo, int danoAtaque) {
@@ -39,6 +40,8 @@ public class CartaPokemon extends Carta {
     public int getLimiteEnergias() { return limiteEnergias; }
     public boolean isEvoluiuNesteTurno() { return evoluiuNesteTurno; }
     public void setEvoluiuNesteTurno(boolean valor) { this.evoluiuNesteTurno = valor; }
+    public int getNumeroDex() { return numeroDex; }
+    public void setNumeroDex(int numeroDex) { this.numeroDex = numeroDex; }
 
     public void receberDano(int dano) {
         this.hpAtual -= dano;

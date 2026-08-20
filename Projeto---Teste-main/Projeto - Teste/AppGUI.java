@@ -24,6 +24,9 @@ public class AppGUI {
     private JPanel campoJogadorPanel;
     private JPanel maoPanel;
     private JTextArea logArea;
+    private JPanel flashPane; // camada transparente usada pro efeito visual de ataque
+    private int alphaFlash = 0;
+    private Color corFlash = Color.RED;
 
     private Jogador jogador1;
     private Jogador jogador2;
@@ -181,7 +184,7 @@ public class AppGUI {
 
     /**
      * Mostra uma telinha de carregamento enquanto o Bot monta o time dele em segundo plano,
-     * sorteando Pokémon aleatórios da PokeAPI (Gen 1 a 4) até bater o limite do baralho.
+     * sorteando Pokémon aleatórios da PokeAPI (Gen 1 a 6) até bater o limite do baralho.
      */
     private void construirTimeAleatorioBotComLoading(Jogador bot) {
         JDialog carregando = new JDialog((Frame) null, "Aguarde...", true);
@@ -207,7 +210,7 @@ public class AppGUI {
     }
 
     /**
-     * Sorteia números de Pokédex (1 a 493, Gen 1-4) até o baralho do Bot bater o limite oficial,
+     * Sorteia números de Pokédex (1 a 721, Gen 1-6) até o baralho do Bot bater o limite oficial,
      * usando a mesma regra de cópias dos jogadores humanos (Básico = 4, Evolução = 2).
      */
     private void construirTimeAleatorioBot(Jogador bot) {
@@ -215,7 +218,7 @@ public class AppGUI {
         int tentativasSemSucesso = 0;
 
         while (bot.getTamanhoBaralho() < LIMITE_BARALHO && tentativasSemSucesso < 30) {
-            int numeroDex = 1 + sorteio.nextInt(493);
+            int numeroDex = 1 + sorteio.nextInt(721);
             CartaPokemon carta = buscarPokemon(numeroDex);
 
             if (carta == null) {
@@ -230,8 +233,10 @@ public class AppGUI {
 
             bot.adicionarAoBaralho(carta);
             for (int i = 1; i < quantidade; i++) {
-                bot.adicionarAoBaralho(new CartaPokemon(carta.getNome(), carta.getTipoElemento(),
-                        carta.getHpMaximo(), carta.getDanoAtaque(), carta.getEvoluiDe()));
+                CartaPokemon copia = new CartaPokemon(carta.getNome(), carta.getTipoElemento(),
+                        carta.getHpMaximo(), carta.getDanoAtaque(), carta.getEvoluiDe());
+                copia.setNumeroDex(carta.getNumeroDex());
+                bot.adicionarAoBaralho(copia);
             }
             tentativasSemSucesso = 0;
         }
@@ -243,7 +248,7 @@ public class AppGUI {
             if (disponivel[0]) opcoes.add("💧 Água");
             if (disponivel[1]) opcoes.add("🔥 Fogo");
             if (disponivel[2]) opcoes.add("🌿 Planta");
-            opcoes.add("🌍 Montar Time Customizado (qualquer Pokémon Gen 1 a 4)");
+            opcoes.add("🌍 Montar Time Customizado (qualquer Pokémon Gen 1 a 6)");
 
             String escolha = (String) JOptionPane.showInputDialog(
                     frame,
@@ -276,7 +281,7 @@ public class AppGUI {
         }
     }
 
-    // ---------- CONSTRUTOR DE TIME CUSTOMIZADO (Gen 1 a 4, via PokeAPI) ----------
+    // ---------- CONSTRUTOR DE TIME CUSTOMIZADO (Gen 1 a 6, via PokeAPI) ----------
 
     /**
      * Abre uma janela onde o jogador navega pelas gerações (1 a 4) e escolhe quantos Pokémon quiser
@@ -296,7 +301,9 @@ public class AppGUI {
         JButton btnGen2 = new JButton("2ª Geração (152-251)");
         JButton btnGen3 = new JButton("3ª Geração (252-386)");
         JButton btnGen4 = new JButton("4ª Geração (387-493)");
-        for (JButton b : new JButton[]{btnGen1, btnGen2, btnGen3, btnGen4}) {
+        JButton btnGen5 = new JButton("5ª Geração (494-649)");
+        JButton btnGen6 = new JButton("6ª Geração (650-721)");
+        for (JButton b : new JButton[]{btnGen1, btnGen2, btnGen3, btnGen4, btnGen5, btnGen6}) {
             b.setFont(new Font("Segoe UI", Font.PLAIN, 12));
             geracoesPanel.add(b);
         }
@@ -338,7 +345,9 @@ public class AppGUI {
             if (origem == btnGen1) { offset = 0; limite = 151; }
             else if (origem == btnGen2) { offset = 151; limite = 100; }
             else if (origem == btnGen3) { offset = 251; limite = 135; }
-            else { offset = 386; limite = 107; }
+            else if (origem == btnGen4) { offset = 386; limite = 107; }
+            else if (origem == btnGen5) { offset = 493; limite = 156; }
+            else { offset = 649; limite = 72; }
 
             offsetAtual[0] = offset;
             statusLabel.setText("⏳ Carregando lista de Pokémon...");
@@ -360,6 +369,8 @@ public class AppGUI {
         btnGen2.addActionListener(carregarGeracao);
         btnGen3.addActionListener(carregarGeracao);
         btnGen4.addActionListener(carregarGeracao);
+        btnGen5.addActionListener(carregarGeracao);
+        btnGen6.addActionListener(carregarGeracao);
 
         JButton btnAdicionar = new JButton("➕ Adicionar Selecionado ao Time");
         btnAdicionar.addActionListener(e -> {
@@ -403,9 +414,11 @@ public class AppGUI {
                         jogador.adicionarAoBaralho(carta);
                         // Cria as cópias extras a partir dos mesmos dados (sem precisar buscar de novo na internet)
                         for (int i = 1; i < quantidade; i++) {
-                            jogador.adicionarAoBaralho(new CartaPokemon(
+                            CartaPokemon copia = new CartaPokemon(
                                     carta.getNome(), carta.getTipoElemento(),
-                                    carta.getHpMaximo(), carta.getDanoAtaque(), carta.getEvoluiDe()));
+                                    carta.getHpMaximo(), carta.getDanoAtaque(), carta.getEvoluiDe());
+                            copia.setNumeroDex(carta.getNumeroDex());
+                            jogador.adicionarAoBaralho(copia);
                         }
                         contador[0] += quantidade;
                         resumo.append(quantidade).append("x ").append(carta.getNome()).append(", ");
@@ -487,7 +500,9 @@ public class AppGUI {
             Matcher evoMatcher = Pattern.compile("\"evolves_from_species\":\\{\"name\":\"([a-z0-9\\-]+)\"").matcher(jsonSpecies);
             String evoluiDe = evoMatcher.find() ? capitalizar(evoMatcher.group(1)) : null;
 
-            return new CartaPokemon(nome, tipo, hp, dano, evoluiDe);
+            CartaPokemon carta = new CartaPokemon(nome, tipo, hp, dano, evoluiDe);
+            carta.setNumeroDex(numeroDex); // guarda o número, pra imagem funcionar no tabuleiro depois
+            return carta;
         } catch (Exception e) {
             return null;
         }
@@ -573,6 +588,34 @@ public class AppGUI {
         }
     }
 
+    /**
+     * Emoji representando cada tipo elemental — usado pra dar uma identidade visual rápida
+     * (sem precisar buscar ícone de verdade da internet, funciona sempre, offline inclusive).
+     */
+    private String emojiDoTipo(String tipo) {
+        switch (tipo) {
+            case "Água": return "💧";
+            case "Fogo": return "🔥";
+            case "Planta": return "🌿";
+            case "Elétrico": return "⚡";
+            case "Psíquico": return "🔮";
+            case "Gelo": return "❄️";
+            case "Dragão": return "🐉";
+            case "Sombrio": return "🌑";
+            case "Fada": return "✨";
+            case "Lutador": return "🥊";
+            case "Voador": return "🕊️";
+            case "Veneno": return "☠️";
+            case "Terra": return "🌍";
+            case "Pedra": return "🪨";
+            case "Inseto": return "🐛";
+            case "Fantasma": return "👻";
+            case "Aço": return "⚙️";
+            case "Normal": return "⭐";
+            default: return "❔";
+        }
+    }
+
     private String fetchUrl(String urlStr) throws Exception {
         java.net.URL url = java.net.URI.create(urlStr).toURL();
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -596,6 +639,20 @@ public class AppGUI {
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH); // abre já em tela cheia (maximizada)
         frame.setLayout(new BorderLayout(0, 0));
         frame.getContentPane().setBackground(COR_FUNDO);
+
+        // ---- CAMADA DE EFEITO (flash de ataque) — fica "por cima" de tudo, transparente até ser usada ----
+        flashPane = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                if (alphaFlash > 0) {
+                    g.setColor(new Color(corFlash.getRed(), corFlash.getGreen(), corFlash.getBlue(), alphaFlash));
+                    g.fillRect(0, 0, getWidth(), getHeight());
+                }
+            }
+        };
+        flashPane.setOpaque(false);
+        frame.setGlassPane(flashPane);
 
         // ---- TOPO: banner colorido com informações do turno ----
         JPanel topoPanel = new JPanel(new GridLayout(2, 1));
@@ -720,15 +777,27 @@ public class AppGUI {
      * Busca (e cacheia) a ilustração de um Pokémon a partir do nome, usando os sprites públicos
      * do PokeAPI. Se não tiver internet ou o nome não estiver mapeado, retorna null (sem travar o jogo).
      */
-    private ImageIcon carregarSprite(String nomePokemon) {
-        if (cacheSprites.containsKey(nomePokemon)) {
-            return cacheSprites.get(nomePokemon);
+    /**
+     * Busca a ilustração de um Pokémon. Prioriza o número da Pokédex guardado na própria carta
+     * (funciona pra qualquer um dos 493 — times customizados e do Bot incluídos). Se a carta não
+     * tiver esse número (caso dos times fixos, criados sem passar pela PokeAPI), cai pro sistema
+     * antigo, buscando pelo nome na tabela POKEDEX.
+     */
+    private ImageIcon carregarSprite(CartaPokemon carta) {
+        int numero = carta.getNumeroDex() > 0 ? carta.getNumeroDex() : -1;
+
+        if (numero == -1) {
+            Integer numeroPorNome = POKEDEX.get(carta.getNome());
+            if (numeroPorNome != null) numero = numeroPorNome;
         }
 
-        Integer numero = POKEDEX.get(nomePokemon);
-        if (numero == null) {
-            cacheSprites.put(nomePokemon, null);
-            return null;
+        if (numero == -1) {
+            return null; // não tem como saber o número desse Pokémon, segue sem imagem
+        }
+
+        String chaveCache = carta.getNome() + "#" + numero;
+        if (cacheSprites.containsKey(chaveCache)) {
+            return cacheSprites.get(chaveCache);
         }
 
         try {
@@ -736,11 +805,11 @@ public class AppGUI {
             java.awt.Image imagem = ImageIO.read(java.net.URI.create(url).toURL());
             java.awt.Image redimensionada = imagem.getScaledInstance(64, 64, java.awt.Image.SCALE_SMOOTH);
             ImageIcon icone = new ImageIcon(redimensionada);
-            cacheSprites.put(nomePokemon, icone);
+            cacheSprites.put(chaveCache, icone);
             return icone;
         } catch (Exception e) {
-            // Sem internet, nome não encontrado, ou qualquer outro problema — só segue sem imagem
-            cacheSprites.put(nomePokemon, null);
+            // Sem internet, número inválido, ou qualquer outro problema — só segue sem imagem
+            cacheSprites.put(chaveCache, null);
             return null;
         }
     }
@@ -874,6 +943,14 @@ public class AppGUI {
         if (bot.getPokemonAtivo() != null && bot.getPokemonAtivo().getQuantidadeEnergias() >= 1) {
             boolean atacou = bot.atacar(oponenteDoBot);
             if (atacou) {
+                mostrarFlashDeAtaque(new Color(220, 40, 40));
+
+                if (oponenteDoBot.getPokemonAtivo() == null && oponenteDoBot.getBanco().isEmpty()) {
+                    jogoAtivo = false;
+                    mostrarTelaFimDeJogo(bot, oponenteDoBot, "Não sobrou nenhum Pokémon em campo!");
+                    return;
+                }
+
                 bot.encerrarRodada();
                 System.out.println("🤖 " + bot.getNome() + " encerrou o turno após atacar.");
                 trocarTurno();
@@ -912,11 +989,63 @@ public class AppGUI {
 
     private void encerrarJogoComDerrota(Jogador perdedor, Jogador vencedor) {
         jogoAtivo = false;
-        JOptionPane.showMessageDialog(frame,
-                "💀 " + perdedor.getNome() + " não tem mais cartas pra comprar e perdeu o jogo!\n🏆 " + vencedor.getNome() + " venceu a partida!",
-                "Fim de Jogo",
-                JOptionPane.INFORMATION_MESSAGE);
         turnoLabel.setText("🏆 " + vencedor.getNome() + " venceu a partida!");
+        mostrarTelaFimDeJogo(vencedor, perdedor, perdedor.getNome() + " não tinha mais cartas pra comprar!");
+    }
+
+    /**
+     * Tela de Vitória/Derrota estilizada, com banner colorido — bem mais bonita que
+     * o JOptionPane genérico. Fecha o jogo (ou reinicia) ao clicar no botão.
+     */
+    private void mostrarTelaFimDeJogo(Jogador vencedor, Jogador perdedor, String motivo) {
+        JDialog telaFim = new JDialog(frame, "Fim de Jogo", true);
+        telaFim.setSize(480, 380);
+        telaFim.setLocationRelativeTo(frame);
+        telaFim.setLayout(new BorderLayout());
+        telaFim.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+
+        JPanel banner = new JPanel(new GridLayout(2, 1));
+        banner.setBackground(new Color(255, 193, 7)); // dourado, clima de "troféu"
+        banner.setBorder(BorderFactory.createEmptyBorder(30, 10, 20, 10));
+
+        JLabel trofeu = new JLabel("🏆", SwingConstants.CENTER);
+        trofeu.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 64));
+
+        JLabel tituloVencedor = new JLabel(vencedor.getNome() + " VENCEU!", SwingConstants.CENTER);
+        tituloVencedor.setFont(new Font("Segoe UI", Font.BOLD, 26));
+        tituloVencedor.setForeground(COR_BANNER);
+
+        banner.add(trofeu);
+        banner.add(tituloVencedor);
+
+        JPanel corpo = new JPanel();
+        corpo.setLayout(new BoxLayout(corpo, BoxLayout.Y_AXIS));
+        corpo.setBackground(COR_FUNDO);
+        corpo.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JLabel motivoLabel = new JLabel("<html><div style='text-align:center;'>💀 " + perdedor.getNome()
+                + " perdeu a partida.<br>" + motivo + "</div></html>", SwingConstants.CENTER);
+        motivoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        motivoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel turnoFinalLabel = new JLabel("Partida encerrada no Turno " + numeroTurno + ".", SwingConstants.CENTER);
+        turnoFinalLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+        turnoFinalLabel.setForeground(Color.GRAY);
+        turnoFinalLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        turnoFinalLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
+
+        JButton btnFechar = criarBotaoAcao("🚪 Fechar o Jogo", new Color(66, 66, 66));
+        btnFechar.setAlignmentX(Component.CENTER_ALIGNMENT);
+        btnFechar.addActionListener(e -> System.exit(0));
+
+        corpo.add(motivoLabel);
+        corpo.add(turnoFinalLabel);
+        corpo.add(btnFechar);
+
+        telaFim.add(banner, BorderLayout.NORTH);
+        telaFim.add(corpo, BorderLayout.CENTER);
+
+        telaFim.setVisible(true);
     }
 
     // ---------- ATUALIZAÇÃO VISUAL ----------
@@ -1030,7 +1159,7 @@ public class AppGUI {
         btnZonaMorta.setFocusPainted(false);
         btnZonaMorta.setAlignmentX(Component.CENTER_ALIGNMENT);
         if (!zonaMorta.isEmpty()) {
-            ImageIcon spriteUltimoMorto = carregarSprite(zonaMorta.get(zonaMorta.size() - 1).getNome());
+            ImageIcon spriteUltimoMorto = carregarSprite(zonaMorta.get(zonaMorta.size() - 1));
             if (spriteUltimoMorto != null) {
                 btnZonaMorta.setIcon(spriteUltimoMorto);
                 btnZonaMorta.setVerticalTextPosition(SwingConstants.BOTTOM);
@@ -1089,7 +1218,7 @@ public class AppGUI {
         if (p != null) {
             botao.setBackground(corDoTipo(p.getTipoElemento()));
             botao.setForeground(Color.WHITE);
-            ImageIcon sprite = carregarSprite(p.getNome());
+            ImageIcon sprite = carregarSprite(p);
             if (sprite != null) botao.setIcon(sprite);
         } else {
             botao.setBackground(new Color(230, 230, 235));
@@ -1100,7 +1229,7 @@ public class AppGUI {
     private String htmlPokemon(String cabecalho, CartaPokemon p) {
         return "<html><div style='text-align:center; width:150px;'>"
                 + "<b>" + cabecalho + "</b><br>"
-                + "<b>" + p.getNome() + "</b><br>"
+                + emojiDoTipo(p.getTipoElemento()) + " <b>" + p.getNome() + "</b><br>"
                 + barraHP(p.getHpAtual(), p.getHpMaximo()) + "<br>"
                 + "HP " + p.getHpAtual() + "/" + p.getHpMaximo() + "<br>"
                 + "⚡ " + p.getQuantidadeEnergias() + "/" + p.getLimiteEnergias()
@@ -1129,7 +1258,7 @@ public class AppGUI {
 
                 String rotulo = "<html><div style='text-align:center; width:130px;'>"
                         + (p.isBasico() ? "🟢 <b>" : "✨ <b>") + p.getNome() + "</b><br>"
-                        + p.getTipoElemento() + "<br>"
+                        + emojiDoTipo(p.getTipoElemento()) + " " + p.getTipoElemento() + "<br>"
                         + "HP " + p.getHpMaximo() + " | Dano " + p.getDanoAtaque()
                         + "</div></html>";
                 JButton btnCarta = new JButton(rotulo);
@@ -1141,7 +1270,7 @@ public class AppGUI {
                 btnCarta.setFocusPainted(false);
                 btnCarta.setVerticalTextPosition(SwingConstants.BOTTOM);
                 btnCarta.setHorizontalTextPosition(SwingConstants.CENTER);
-                ImageIcon spriteMao = carregarSprite(p.getNome());
+                ImageIcon spriteMao = carregarSprite(p);
                 if (spriteMao != null) btnCarta.setIcon(spriteMao);
                 btnCarta.addActionListener(e -> acaoClicarCartaPokemon(indice, p));
                 maoPanel.add(btnCarta);
@@ -1359,10 +1488,46 @@ public class AppGUI {
 
     // ---------- AÇÕES: BOTÕES DE RODAPÉ ----------
 
+    /**
+     * Efeito visual de ataque: um flash colorido rápido cobrindo a tela inteira, que aparece
+     * na hora e depois desaparece suavemente. Usa o glass pane da janela (flashPane), então
+     * funciona por cima de qualquer coisa, sem bagunçar o layout normal da tela.
+     */
+    private void mostrarFlashDeAtaque(Color cor) {
+        corFlash = cor;
+        flashPane.setVisible(true);
+
+        Timer timer = new Timer(25, null);
+        final int[] passo = {0};
+        timer.addActionListener(e -> {
+            passo[0]++;
+            if (passo[0] <= 4) {
+                alphaFlash = 140; // sobe rápido pro pico
+            } else {
+                alphaFlash = Math.max(0, alphaFlash - 15); // depois desce suave
+            }
+            flashPane.repaint();
+
+            if (alphaFlash <= 0 && passo[0] > 4) {
+                flashPane.setVisible(false);
+                timer.stop();
+            }
+        });
+        timer.start();
+    }
+
     private void acaoAtacar() {
         if (ehTurnoDoBot) return;
         boolean sucesso = jogadorAtual.atacar(adversario);
         if (sucesso) {
+            mostrarFlashDeAtaque(new Color(220, 40, 40));
+
+            if (adversario.getPokemonAtivo() == null && adversario.getBanco().isEmpty()) {
+                jogoAtivo = false;
+                mostrarTelaFimDeJogo(jogadorAtual, adversario, "Não sobrou nenhum Pokémon em campo!");
+                return;
+            }
+
             jogadorAtual.encerrarRodada();
             System.out.println("➡️ Turno encerrado automaticamente após o ataque.");
             trocarTurno();
