@@ -1,5 +1,5 @@
 public class CartaTreinador extends Carta {
-    private String efeito; // "Poção" ou "Troca"
+    private String efeito;
 
     public CartaTreinador(String nome, String efeito) {
         super(nome, "Treinador");
