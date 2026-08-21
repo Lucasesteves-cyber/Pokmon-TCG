@@ -1,5 +1,5 @@
 public class CartaEnergia extends Carta {
-    private String tipoElemento; // Fogo, Água, Planta, etc.
+    private String tipoElemento;
 
     public CartaEnergia(String nome, String tipoElemento) {
         super(nome, "Energia");
