@@ -2,31 +2,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CartaPokemon extends Carta {
-    private String tipoElemento; // Fogo, Água, Planta, etc.
+    private String tipoElemento;
     private int hpMaximo;
     private int hpAtual;
     private int danoAtaque;
     private List<CartaEnergia> energiasAnexadas;
-    private String evoluiDe; // nome do Pokémon que precisa estar em campo para evoluir para este. null = forma Básica
-    private int limiteEnergias; // capacidade máxima de energias que esse Pokémon aguenta (sorteado entre 6 e 8)
-    private boolean evoluiuNesteTurno; // trava a evolução desse Pokémon específico até o próximo turno dele
-    private int numeroDex = -1; // número na Pokédex nacional (só é preenchido quando vem da PokeAPI, senão fica -1)
+    private String evoluiDe;
+    private int limiteEnergias;
+    private boolean evoluiuNesteTurno;
+    private int numeroDex = -1;
 
-    // Construtor para Pokémon Básico (não evolui de nada)
     public CartaPokemon(String nome, String tipoElemento, int hpMaximo, int danoAtaque) {
         this(nome, tipoElemento, hpMaximo, danoAtaque, null);
     }
 
-    // Construtor para Pokémon Evoluído (evolui de outro Pokémon)
     public CartaPokemon(String nome, String tipoElemento, int hpMaximo, int danoAtaque, String evoluiDe) {
         super(nome, "Pokemon");
         this.tipoElemento = tipoElemento;
         this.hpMaximo = hpMaximo;
-        this.hpAtual = hpMaximo; // Começa com vida cheia
+        this.hpAtual = hpMaximo;
         this.danoAtaque = danoAtaque;
         this.energiasAnexadas = new ArrayList<>();
         this.evoluiDe = evoluiDe;
-        this.limiteEnergias = 6 + (int) (Math.random() * 3); // sorteia 6, 7 ou 8
+        this.limiteEnergias = 6 + (int) (Math.random() * 3);
         this.evoluiuNesteTurno = false;
     }
 
@@ -54,7 +52,7 @@ public class CartaPokemon extends Carta {
 
     public boolean anexarEnergia(CartaEnergia energia) {
         if (energiasAnexadas.size() >= limiteEnergias) {
-            return false; // atingiu o limite de energias desse Pokémon
+            return false;
         }
         energiasAnexadas.add(energia);
         return true;
