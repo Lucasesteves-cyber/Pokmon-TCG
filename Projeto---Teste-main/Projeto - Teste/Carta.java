@@ -1,6 +1,6 @@
 public abstract class Carta {
     private String nome;
-    private String tipoCarta; // "Pokemon", "Energia" ou "Treinador"
+    private String tipoCarta;
 
     public Carta(String nome, String tipoCarta) {
         this.nome = nome;
