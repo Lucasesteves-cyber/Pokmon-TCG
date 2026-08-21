@@ -11,11 +11,6 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.List;
 
-/**
- * Versão gráfica (Java Swing) do Pokémon TCG.
- * Reaproveita 100% da lógica de jogo já pronta em Jogador/CartaPokemon/CartaEnergia/CartaTreinador —
- * aqui só trocamos a "interface" de Scanner/console por botões e janelas.
- */
 public class AppGUI {
 
     private JFrame frame;
@@ -24,9 +19,9 @@ public class AppGUI {
     private JPanel campoJogadorPanel;
     private JPanel maoPanel;
     private JTextArea logArea;
-    private JScrollPane logScroll; // fica escondido até o jogador clicar em "Ver Histórico"
-    private final java.util.List<JComponent> toastsAtivos = new java.util.ArrayList<>(); // notificações na tela
-    private JPanel flashPane; // camada transparente usada pro efeito visual de ataque
+    private JScrollPane logScroll;
+    private final java.util.List<JComponent> toastsAtivos = new java.util.ArrayList<>();
+    private JPanel flashPane;
     private int alphaFlash = 0;
     private Color corFlash = Color.RED;
 
@@ -34,7 +29,7 @@ public class AppGUI {
     private Jogador jogador2;
     private Jogador jogadorAtual;
     private Jogador adversario;
-    private Jogador jogadorBot; // null se for modo PvP (2 jogadores humanos)
+    private Jogador jogadorBot;
     private boolean ehTurnoDoBot = false;
 
     private boolean jogador1PrimeiroTurno = true;
@@ -42,7 +37,6 @@ public class AppGUI {
     private int numeroTurno = 1;
     private boolean jogoAtivo = true;
 
-    // Cores por tipo de Pokémon, usadas nos botões pra deixar visual mais bonito
     private static final Color COR_AGUA = new Color(66, 133, 244);
     private static final Color COR_FOGO = new Color(230, 74, 25);
     private static final Color COR_PLANTA = new Color(76, 175, 80);
@@ -51,17 +45,14 @@ public class AppGUI {
     private static final Color COR_FUNDO = new Color(245, 247, 250);
     private static final Color COR_BANNER = new Color(33, 33, 66);
 
-    // Limite oficial de cartas no baralho (igual ao tamanho dos times fixos)
     private static final int LIMITE_BARALHO = 40;
 
-    // Cache de imagens já baixadas, pra não buscar de novo toda vez que a tela atualiza
     private final java.util.Map<String, ImageIcon> cacheSprites = new java.util.HashMap<>();
+    private final java.util.Set<String> chavesCarregandoAgora = new java.util.HashSet<>();
 
-    // Cache separado pra lista de seleção do construtor customizado (indexado por número da Pokédex)
     private final java.util.Map<Integer, ImageIcon> cacheSpritesPorNumero = new java.util.HashMap<>();
     private final java.util.Set<Integer> spritesCarregandoAgora = new java.util.HashSet<>();
 
-    // Número da Pokédex de cada Pokémon do jogo, usado pra montar a URL do sprite
     private static final java.util.Map<String, Integer> POKEDEX = new java.util.HashMap<>();
     static {
         POKEDEX.put("Bulbasaur", 1);
@@ -103,40 +94,37 @@ public class AppGUI {
         POKEDEX.put("Decidueye", 724);
     }
 
-    // Marca de versão visível — ajuda a confirmar se a versão rodando é a mais nova (aparece no título da janela)
     private static final String VERSAO_BUILD = "build: Gen 1-6";
 
     public static void main(String[] args) {
-        // Usa o Look and Feel "Metal" pra garantir que as cores dos botões apareçam
-        // (o visual nativo do Windows às vezes ignora cor de fundo customizada em botão)
+
         try {
             UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
         } catch (Exception e) {
-            // se falhar, segue com o visual padrão mesmo
+
         }
 
         SwingUtilities.invokeLater(() -> new AppGUI().iniciar());
     }
 
     private void iniciar() {
-        // ---------- ESCOLHA DE MODO: SOLO (vs Bot) ou PVP (2 Jogadores) ----------
+
         boolean modoSolo = escolherModoDialog();
 
-        boolean[] timesDisponiveis = { true, true, true }; // Água, Fogo, Planta
+        boolean[] timesDisponiveis = { true, true, true };
 
-        // ---------- JOGADOR 1 (sempre humano) ----------
         String nome1 = JOptionPane.showInputDialog(null, "Digite o seu nome de Treinador:", "Pokémon TCG", JOptionPane.QUESTION_MESSAGE);
         if (nome1 == null || nome1.trim().isEmpty()) nome1 = "Treinador 1";
         jogador1 = new Jogador(nome1);
         escolherTimeDialog(jogador1, timesDisponiveis);
 
         if (modoSolo) {
-            // ---------- MODO SOLO: o Bot monta o time dele sozinho, 100% aleatório da PokeAPI ----------
+
             jogador2 = new Jogador("Bot 🤖");
             jogadorBot = jogador2;
             construirTimeAleatorioBotComLoading(jogador2);
         } else {
-            // ---------- MODO PVP: 2º jogador humano escolhe nome e time normalmente ----------
+
             jogadorBot = null;
             String nome2 = JOptionPane.showInputDialog(null, "Digite o nome do Treinador 2:", "Pokémon TCG - Versus", JOptionPane.QUESTION_MESSAGE);
             if (nome2 == null || nome2.trim().isEmpty()) nome2 = "Treinador 2";
@@ -157,18 +145,12 @@ public class AppGUI {
 
         montarJanela();
 
-        // Redireciona o System.out pra também aparecer no log da tela
-        // (assim TODAS as mensagens que já existem no Jogador.java aparecem aqui de graça)
         redirecionarConsoleParaLog();
 
         frame.setVisible(true);
 
         iniciarTurno();
     }
-
-    // ---------- ESCOLHA DE TIME (janela de diálogo) ----------
-
-    // ---------- ESCOLHA DE MODO (Solo vs Bot / PvP) ----------
 
     private boolean escolherModoDialog() {
         Object[] opcoes = { "🎮 Solo (vs Bot)", "👥 PvP (2 Jogadores)" };
@@ -182,21 +164,15 @@ public class AppGUI {
                 opcoes,
                 opcoes[0]
         );
-        return escolha == 0; // 0 = Solo, qualquer outra coisa (inclusive fechar) = PvP
+        return escolha == 0;
     }
 
-    // ---------- MONTAGEM DO TIME DO BOT (100% aleatório, via PokeAPI) ----------
-
-    /**
-     * Mostra uma telinha de carregamento enquanto o Bot monta o time dele em segundo plano,
-     * sorteando Pokémon aleatórios da PokeAPI (Gen 1 a 6) até bater o limite do baralho.
-     */
     private void construirTimeAleatorioBotComLoading(Jogador bot) {
         JDialog carregando = new JDialog((Frame) null, "Aguarde...", true);
         carregando.setSize(400, 140);
         carregando.setLocationRelativeTo(null);
         carregando.setLayout(new BorderLayout(10, 10));
-        carregando.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE); // não deixa fechar no meio do processo
+        carregando.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
 
         JLabel mensagem = new JLabel("🤖 O Bot está sorteando o time dele na PokeAPI...", SwingConstants.CENTER);
         mensagem.setBorder(BorderFactory.createEmptyBorder(15, 10, 5, 10));
@@ -211,23 +187,39 @@ public class AppGUI {
             SwingUtilities.invokeLater(carregando::dispose);
         }).start();
 
-        carregando.setVisible(true); // bloqueia aqui (modal) até o dispose() lá de cima
+        carregando.setVisible(true);
     }
 
-    /**
-     * Sorteia números de Pokédex (1 a 721, Gen 1-6) até o baralho do Bot bater o limite oficial,
-     * usando a mesma regra de cópias dos jogadores humanos (Básico = 4, Evolução = 2).
-     */
+    private static final CartaPokemon CARTA_FALHA_SORTEIO = new CartaPokemon("_FALHA_", "Normal", 1, 1);
+
     private void construirTimeAleatorioBot(Jogador bot) {
+        final int TOTAL_TENTATIVAS = 40;
+        final int PARALELISMO = 8;
+
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(PARALELISMO);
+        java.util.concurrent.BlockingQueue<CartaPokemon> resultados = new java.util.concurrent.LinkedBlockingQueue<>();
         java.util.Random sorteio = new java.util.Random();
-        int tentativasSemSucesso = 0;
 
-        while (bot.getTamanhoBaralho() < LIMITE_BARALHO && tentativasSemSucesso < 30) {
-            int numeroDex = 1 + sorteio.nextInt(721);
-            CartaPokemon carta = buscarPokemon(numeroDex);
+        for (int i = 0; i < TOTAL_TENTATIVAS; i++) {
+            final int numeroDex = 1 + sorteio.nextInt(721);
+            executor.submit(() -> {
+                CartaPokemon carta = buscarPokemon(numeroDex);
+                resultados.offer(carta != null ? carta : CARTA_FALHA_SORTEIO);
+            });
+        }
+        executor.shutdown();
 
-            if (carta == null) {
-                tentativasSemSucesso++;
+        int recebidos = 0;
+        while (recebidos < TOTAL_TENTATIVAS && bot.getTamanhoBaralho() < LIMITE_BARALHO) {
+            CartaPokemon carta;
+            try {
+                carta = resultados.take();
+            } catch (InterruptedException e) {
+                break;
+            }
+            recebidos++;
+
+            if (carta == CARTA_FALHA_SORTEIO) {
                 continue;
             }
 
@@ -243,8 +235,9 @@ public class AppGUI {
                 copia.setNumeroDex(carta.getNumeroDex());
                 bot.adicionarAoBaralho(copia);
             }
-            tentativasSemSucesso = 0;
         }
+
+        executor.shutdownNow();
     }
 
     private void escolherTimeDialog(Jogador jogador, boolean[] disponivel) {
@@ -265,7 +258,7 @@ public class AppGUI {
                     opcoes.get(0)
             );
 
-            if (escolha == null) continue; // obriga escolher, não deixa fechar sem selecionar
+            if (escolha == null) continue;
 
             if (escolha.contains("Água")) {
                 App.adicionarTimeAgua(jogador);
@@ -281,18 +274,11 @@ public class AppGUI {
                 return;
             } else if (escolha.contains("Customizado")) {
                 boolean concluiu = abrirConstrutorDeTime(jogador);
-                if (concluiu) return; // se cancelou sem adicionar nada, volta pro menu de escolha
+                if (concluiu) return;
             }
         }
     }
 
-    // ---------- CONSTRUTOR DE TIME CUSTOMIZADO (Gen 1 a 6, via PokeAPI) ----------
-
-    /**
-     * Abre uma janela onde o jogador navega pelas gerações (1 a 4) e escolhe quantos Pokémon quiser
-     * pro time dele. Retorna true quando o jogador termina de verdade (clicou em Concluir com
-     * pelo menos 1 Pokémon adicionado).
-     */
     private boolean abrirConstrutorDeTime(Jogador jogador) {
         JDialog dialog = new JDialog((Frame) null, "Montar Time Customizado — " + jogador.getNome(), true);
         dialog.setSize(650, 620);
@@ -329,7 +315,6 @@ public class AppGUI {
         int[] offsetAtual = {0};
         int[] contador = {0};
 
-        // Renderiza cada item da lista com a ilustração do Pokémon (carregada aos poucos, em segundo plano)
         listaPokemon.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index,
@@ -408,16 +393,14 @@ public class AppGUI {
                     for (CartaPokemon carta : linhaCompleta) {
                         if (contador[0] >= LIMITE_BARALHO) break;
 
-                        // Quantidade oficial: Básico = 4 cópias (máximo), Evolução = 2 cópias
                         int quantidade = carta.isBasico() ? 4 : 2;
 
-                        // Não deixa passar do limite de 40 — corta a quantidade se precisar
                         int espacoRestante = LIMITE_BARALHO - contador[0];
                         if (quantidade > espacoRestante) quantidade = espacoRestante;
                         if (quantidade <= 0) break;
 
                         jogador.adicionarAoBaralho(carta);
-                        // Cria as cópias extras a partir dos mesmos dados (sem precisar buscar de novo na internet)
+
                         for (int i = 1; i < quantidade; i++) {
                             CartaPokemon copia = new CartaPokemon(
                                     carta.getNome(), carta.getTipoElemento(),
@@ -431,7 +414,7 @@ public class AppGUI {
 
                     contadorLabel.setText(contador[0] + " / " + LIMITE_BARALHO + " Pokémon adicionados ao time.");
                     if (resumo.length() > 0) {
-                        resumo.setLength(resumo.length() - 2); // tira a última vírgula
+                        resumo.setLength(resumo.length() - 2);
                         statusLabel.setText("✅ Linha completa adicionada: " + resumo);
                     } else {
                         statusLabel.setText("⚠️ Não havia mais espaço no time (limite de " + LIMITE_BARALHO + " cartas).");
@@ -471,14 +454,11 @@ public class AppGUI {
         dialog.add(listaScroll, BorderLayout.CENTER);
         dialog.add(sulPanel, BorderLayout.SOUTH);
 
-        dialog.setVisible(true); // bloqueia aqui até o dialog fechar (dispose)
+        dialog.setVisible(true);
 
         return concluiuComSucesso[0];
     }
 
-    /**
-     * Busca (só os nomes) da lista de Pokémon de uma geração — rápido, sem stats.
-     */
     private java.util.List<String> buscarNomesGeracao(int offset, int limite) throws Exception {
         String json = fetchUrl("https://pokeapi.co/api/v2/pokemon?offset=" + offset + "&limit=" + limite);
         java.util.List<String> nomes = new java.util.ArrayList<>();
@@ -487,10 +467,6 @@ public class AppGUI {
         return nomes;
     }
 
-    /**
-     * Busca os dados completos de 1 Pokémon (tipo, HP, dano, e de quem ele evolui) e monta a CartaPokemon.
-     * Roda em thread separada sempre — nunca chamar direto na thread da interface.
-     */
     private CartaPokemon buscarPokemon(int numeroDex) {
         try {
             String jsonPokemon = fetchUrl("https://pokeapi.co/api/v2/pokemon/" + numeroDex);
@@ -510,16 +486,13 @@ public class AppGUI {
             String evoluiDe = evoMatcher.find() ? capitalizar(evoMatcher.group(1)) : null;
 
             CartaPokemon carta = new CartaPokemon(nome, tipo, hp, dano, evoluiDe);
-            carta.setNumeroDex(numeroDex); // guarda o número, pra imagem funcionar no tabuleiro depois
+            carta.setNumeroDex(numeroDex);
             return carta;
         } catch (Exception e) {
             return null;
         }
     }
 
-    /**
-     * Descobre o número da Pokédex de quem esse Pokémon evolui (ou -1 se ele já for a forma Básica).
-     */
     private int buscarNumeroPreEvolucao(int numeroDex) {
         try {
             String jsonSpecies = fetchUrl("https://pokeapi.co/api/v2/pokemon-species/" + numeroDex);
@@ -530,19 +503,14 @@ public class AppGUI {
                 return Integer.parseInt(m.group(1));
             }
         } catch (Exception e) {
-            // sem sorte, segue sem pré-evolução
+
         }
         return -1;
     }
 
-    /**
-     * Busca a linha evolutiva COMPLETA a partir de qualquer forma escolhida — sobe até achar
-     * a forma Básica, pra garantir que a carta escolhida sempre seja jogável de verdade.
-     * Retorna a lista já ordenada: Básica primeiro, forma escolhida por último.
-     */
     private java.util.List<CartaPokemon> buscarLinhaCompleta(int numeroDexEscolhido) {
         java.util.List<CartaPokemon> cadeia = new java.util.ArrayList<>();
-        java.util.List<Integer> numerosJaVistos = new java.util.ArrayList<>(); // evita loop infinito por segurança
+        java.util.List<Integer> numerosJaVistos = new java.util.ArrayList<>();
 
         int numeroAtual = numeroDexEscolhido;
         while (numeroAtual != -1 && !numerosJaVistos.contains(numeroAtual)) {
@@ -551,7 +519,7 @@ public class AppGUI {
             CartaPokemon carta = buscarPokemon(numeroAtual);
             if (carta == null) break;
 
-            cadeia.add(0, carta); // insere no início, pra ficar Básico -> ... -> escolhido
+            cadeia.add(0, carta);
             numeroAtual = buscarNumeroPreEvolucao(numeroAtual);
         }
 
@@ -597,10 +565,6 @@ public class AppGUI {
         }
     }
 
-    /**
-     * Emoji representando cada tipo elemental — usado pra dar uma identidade visual rápida
-     * (sem precisar buscar ícone de verdade da internet, funciona sempre, offline inclusive).
-     */
     private String emojiDoTipo(String tipo) {
         switch (tipo) {
             case "Água": return "💧";
@@ -639,17 +603,14 @@ public class AppGUI {
         return sb.toString();
     }
 
-
-
     private void montarJanela() {
         frame = new JFrame("Pokémon TCG - Versus [" + VERSAO_BUILD + "]");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1100, 800); // tamanho usado caso o usuário desmaximize a janela depois
-        frame.setExtendedState(JFrame.MAXIMIZED_BOTH); // abre já em tela cheia (maximizada)
+        frame.setSize(1100, 800);
+        frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
         frame.setLayout(new BorderLayout(0, 0));
         frame.getContentPane().setBackground(COR_FUNDO);
 
-        // ---- CAMADA DE EFEITO (flash de ataque) — fica "por cima" de tudo, transparente até ser usada ----
         flashPane = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -661,11 +622,10 @@ public class AppGUI {
             }
         };
         flashPane.setOpaque(false);
-        flashPane.setLayout(null); // posicionamento livre, usado pelas notificações (toasts)
+        flashPane.setLayout(null);
         frame.setGlassPane(flashPane);
-        flashPane.setVisible(true); // fica sempre "ligado" (mas transparente) pra poder mostrar toast a qualquer momento
+        flashPane.setVisible(true);
 
-        // ---- TOPO: banner colorido com informações do turno ----
         JPanel topoPanel = new JPanel(new GridLayout(2, 1));
         topoPanel.setBackground(COR_BANNER);
         topoPanel.setBorder(BorderFactory.createEmptyBorder(12, 10, 12, 10));
@@ -682,7 +642,6 @@ public class AppGUI {
         topoPanel.add(adversarioLabel);
         frame.add(topoPanel, BorderLayout.NORTH);
 
-        // ---- CENTRO: campo + mão, ocupando a tela toda (sem o log fixo do lado) ----
         JPanel centroPanel = new JPanel();
         centroPanel.setLayout(new BoxLayout(centroPanel, BoxLayout.Y_AXIS));
         centroPanel.setBackground(COR_FUNDO);
@@ -702,13 +661,11 @@ public class AppGUI {
         maoScroll.setBorder(BorderFactory.createEmptyBorder());
 
         centroPanel.add(campoJogadorPanel);
-        centroPanel.add(Box.createVerticalStrut(28)); // desce mais a mão, separando bem do campo
+        centroPanel.add(Box.createVerticalStrut(28));
         centroPanel.add(maoScroll);
 
         frame.add(centroPanel, BorderLayout.CENTER);
 
-        // Log continua existindo por trás dos panos (recebe todas as mensagens), só não fica mais
-        // fixo na tela — agora só aparece quando o jogador clica em "Ver Histórico"
         logArea = new JTextArea();
         logArea.setEditable(false);
         logArea.setFont(new Font("Consolas", Font.PLAIN, 12));
@@ -718,7 +675,6 @@ public class AppGUI {
         logScroll = new JScrollPane(logArea);
         logScroll.setBorder(criarBordaTitulo("📜 Log da Partida"));
 
-        // ---- RODAPÉ: botões de ação geral ----
         JPanel rodapePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 12));
         rodapePanel.setBackground(COR_BANNER);
 
@@ -741,10 +697,6 @@ public class AppGUI {
         frame.add(rodapePanel, BorderLayout.SOUTH);
     }
 
-    /**
-     * Abre o histórico completo da partida numa janela separada (não trava o jogo,
-     * pode ficar aberta enquanto você continua jogando).
-     */
     private void abrirHistoricoDialog() {
         JDialog dialogHistorico = new JDialog(frame, "📜 Histórico da Partida", false);
         dialogHistorico.setSize(480, 550);
@@ -774,9 +726,6 @@ public class AppGUI {
         return botao;
     }
 
-    /**
-     * Cor de fundo do botão de acordo com o tipo elemental do Pokémon.
-     */
     private Color corDoTipo(String tipo) {
         switch (tipo) {
             case "Água": return COR_AGUA;
@@ -786,9 +735,6 @@ public class AppGUI {
         }
     }
 
-    /**
-     * Gera uma barrinha de HP em texto (████░░░░) proporcional ao HP atual.
-     */
     private String barraHP(int hpAtual, int hpMaximo) {
         int total = 10;
         int preenchido = (int) Math.round((hpAtual / (double) hpMaximo) * total);
@@ -798,16 +744,6 @@ public class AppGUI {
         return sb.toString();
     }
 
-    /**
-     * Busca (e cacheia) a ilustração de um Pokémon a partir do nome, usando os sprites públicos
-     * do PokeAPI. Se não tiver internet ou o nome não estiver mapeado, retorna null (sem travar o jogo).
-     */
-    /**
-     * Busca a ilustração de um Pokémon. Prioriza o número da Pokédex guardado na própria carta
-     * (funciona pra qualquer um dos 493 — times customizados e do Bot incluídos). Se a carta não
-     * tiver esse número (caso dos times fixos, criados sem passar pela PokeAPI), cai pro sistema
-     * antigo, buscando pelo nome na tabela POKEDEX.
-     */
     private ImageIcon carregarSprite(CartaPokemon carta) {
         int numero = carta.getNumeroDex() > 0 ? carta.getNumeroDex() : -1;
 
@@ -817,7 +753,7 @@ public class AppGUI {
         }
 
         if (numero == -1) {
-            return null; // não tem como saber o número desse Pokémon, segue sem imagem
+            return null;
         }
 
         String chaveCache = carta.getNome() + "#" + numero;
@@ -825,27 +761,35 @@ public class AppGUI {
             return cacheSprites.get(chaveCache);
         }
 
-        try {
-            String url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" + numero + ".png";
-            java.awt.Image imagem = ImageIO.read(java.net.URI.create(url).toURL());
-            java.awt.Image redimensionada = imagem.getScaledInstance(64, 64, java.awt.Image.SCALE_SMOOTH);
-            ImageIcon icone = new ImageIcon(redimensionada);
-            cacheSprites.put(chaveCache, icone);
-            return icone;
-        } catch (Exception e) {
-            // Sem internet, número inválido, ou qualquer outro problema — só segue sem imagem
-            cacheSprites.put(chaveCache, null);
-            return null;
+        if (!chavesCarregandoAgora.contains(chaveCache)) {
+            chavesCarregandoAgora.add(chaveCache);
+            final int numeroFinal = numero;
+
+            new Thread(() -> {
+                ImageIcon icone = null;
+                try {
+                    String url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" + numeroFinal + ".png";
+                    java.awt.Image imagem = ImageIO.read(java.net.URI.create(url).toURL());
+                    java.awt.Image redimensionada = imagem.getScaledInstance(64, 64, java.awt.Image.SCALE_SMOOTH);
+                    icone = new ImageIcon(redimensionada);
+                } catch (Exception e) {
+
+                }
+
+                ImageIcon iconeFinal = icone;
+                SwingUtilities.invokeLater(() -> {
+                    cacheSprites.put(chaveCache, iconeFinal);
+                    chavesCarregandoAgora.remove(chaveCache);
+                    if (frame != null && frame.isShowing()) {
+                        atualizarTela();
+                    }
+                });
+            }).start();
         }
+
+        return null;
     }
 
-    /**
-     * Versão usada pela lista do construtor customizado: busca o sprite direto pelo número da Pokédex
-     * (não pelo nome), já que ali cobrimos os 493 Pokémon e não só os ~31 do mapa POKEDEX.
-     * Carrega em segundo plano (thread separada) pra não travar a lista, e chama list.repaint()
-     * quando terminar — por isso, na primeira vez que o item aparece, ele pode surgir sem ícone
-     * por um instante e a imagem "encaixa" logo em seguida.
-     */
     private ImageIcon obterSpriteParaLista(int numeroDex, JList<String> lista) {
         if (cacheSpritesPorNumero.containsKey(numeroDex)) {
             return cacheSpritesPorNumero.get(numeroDex);
@@ -862,7 +806,7 @@ public class AppGUI {
                     java.awt.Image redimensionada = imagem.getScaledInstance(32, 32, java.awt.Image.SCALE_SMOOTH);
                     icone = new ImageIcon(redimensionada);
                 } catch (Exception e) {
-                    icone = null; // sem sorte, segue sem imagem nesse item
+                    icone = null;
                 }
 
                 ImageIcon iconeFinal = icone;
@@ -874,9 +818,8 @@ public class AppGUI {
             }).start();
         }
 
-        return null; // enquanto carrega, mostra sem ícone (aparece assim que o repaint acontecer)
+        return null;
     }
-
 
     private void redirecionarConsoleParaLog() {
         PrintStream logStream = new PrintStream(new OutputStream() {
@@ -902,8 +845,6 @@ public class AppGUI {
         System.setOut(logStream);
     }
 
-    // ---------- CONTROLE DE TURNO ----------
-
     private void iniciarTurno() {
         if (!jogoAtivo) return;
 
@@ -924,7 +865,7 @@ public class AppGUI {
         atualizarTela();
 
         if (ehTurnoDoBot) {
-            // Dá uma pequena pausa antes do Bot jogar, só pra dar tempo de ver a tela mudar
+
             Timer timer = new Timer(1200, e -> executarTurnoBot());
             timer.setRepeats(false);
             timer.start();
@@ -939,15 +880,12 @@ public class AppGUI {
         iniciarTurno();
     }
 
-    // ---------- "IA" DO BOT (regras simples, sem clique nenhum) ----------
-
     private void executarTurnoBot() {
         if (!jogoAtivo) return;
 
         Jogador bot = jogadorAtual;
         Jogador oponenteDoBot = adversario;
 
-        // 1) Se não tem Ativo, bota um Básico da mão
         if (bot.getPokemonAtivo() == null) {
             int indiceBasico = encontrarIndiceBasicoNaMao(bot);
             if (indiceBasico != -1) {
@@ -955,14 +893,12 @@ public class AppGUI {
             }
         }
 
-        // 2) Enche o Banco com quantos Básicos puder
         int indiceBasico = encontrarIndiceBasicoNaMao(bot);
         while (indiceBasico != -1 && bot.getBanco().size() < 5) {
             bot.colocarPokemonEmCampo(indiceBasico, 1);
             indiceBasico = encontrarIndiceBasicoNaMao(bot);
         }
 
-        // 3) Tenta evoluir o Ativo, se tiver uma evolução disponível na mão
         if (bot.getPokemonAtivo() != null) {
             int indiceEvolucao = encontrarIndiceEvolucaoParaAlvo(bot, bot.getPokemonAtivo());
             if (indiceEvolucao != -1) {
@@ -970,14 +906,12 @@ public class AppGUI {
             }
         }
 
-        // 4) Anexa energia no Ativo
         if (bot.getPokemonAtivo() != null) {
             bot.anexarEnergia(bot.getPokemonAtivo());
         }
 
         atualizarTela();
 
-        // 5) Se o Ativo tem energia suficiente, ataca (isso encerra o turno automaticamente)
         if (bot.getPokemonAtivo() != null && bot.getPokemonAtivo().getQuantidadeEnergias() >= 1) {
             boolean atacou = bot.atacar(oponenteDoBot);
             if (atacou) {
@@ -996,7 +930,6 @@ public class AppGUI {
             }
         }
 
-        // 6) Se não deu pra atacar por algum motivo, só passa o turno
         bot.encerrarRodada();
         System.out.println("🤖 " + bot.getNome() + " passou o turno.");
         trocarTurno();
@@ -1031,10 +964,6 @@ public class AppGUI {
         mostrarTelaFimDeJogo(vencedor, perdedor, perdedor.getNome() + " não tinha mais cartas pra comprar!");
     }
 
-    /**
-     * Tela de Vitória/Derrota estilizada, com banner colorido — bem mais bonita que
-     * o JOptionPane genérico. Fecha o jogo (ou reinicia) ao clicar no botão.
-     */
     private void mostrarTelaFimDeJogo(Jogador vencedor, Jogador perdedor, String motivo) {
         JDialog telaFim = new JDialog(frame, "Fim de Jogo", true);
         telaFim.setSize(480, 380);
@@ -1043,7 +972,7 @@ public class AppGUI {
         telaFim.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
 
         JPanel banner = new JPanel(new GridLayout(2, 1));
-        banner.setBackground(new Color(255, 193, 7)); // dourado, clima de "troféu"
+        banner.setBackground(new Color(255, 193, 7));
         banner.setBorder(BorderFactory.createEmptyBorder(30, 10, 20, 10));
 
         JLabel trofeu = new JLabel("🏆", SwingConstants.CENTER);
@@ -1086,8 +1015,6 @@ public class AppGUI {
         telaFim.setVisible(true);
     }
 
-    // ---------- ATUALIZAÇÃO VISUAL ----------
-
     private void atualizarTela() {
         turnoLabel.setText("TURNO " + numeroTurno + " — VEZ DE " + jogadorAtual.getNome().toUpperCase());
         adversarioLabel.setText("🆚 Pokémon Ativo de " + adversario.getNome() + ": "
@@ -1104,7 +1031,6 @@ public class AppGUI {
     private void montarCampoJogador() {
         campoJogadorPanel.removeAll();
 
-        // ---- ZONA ESQUERDA: Ativo (avançado) em cima, Banco embaixo ----
         JPanel zonaEsquerda = new JPanel();
         zonaEsquerda.setLayout(new BoxLayout(zonaEsquerda, BoxLayout.Y_AXIS));
         zonaEsquerda.setBackground(COR_FUNDO);
@@ -1124,8 +1050,6 @@ public class AppGUI {
             btnAtivo.setEnabled(false);
         }
 
-        // Grid de 5 colunas: só a 3ª (índice 2) tem o Ativo, o resto fica invisível —
-        // assim ele fica alinhado exatamente em cima do Banco 3
         linhaAtivo.add(criarEspacoInvisivel());
         linhaAtivo.add(criarEspacoInvisivel());
         linhaAtivo.add(btnAtivo);
@@ -1164,13 +1088,11 @@ public class AppGUI {
 
         campoJogadorPanel.add(zonaEsquerda, BorderLayout.CENTER);
 
-        // ---- ZONA DIREITA: Baralho em cima, Zona Morta embaixo ----
         JPanel zonaDireita = new JPanel();
         zonaDireita.setLayout(new BoxLayout(zonaDireita, BoxLayout.Y_AXIS));
         zonaDireita.setBackground(COR_FUNDO);
         zonaDireita.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 10));
 
-        // Monte do Baralho — só informativo (a compra é automática no início de cada turno)
         JButton btnBaralho = new JButton("<html><div style='text-align:center;'>📚 <b>BARALHO</b><br><br>"
                 + "<b style='font-size:16px;'>" + jogadorAtual.getTamanhoBaralho() + "</b><br>cartas restantes</div></html>");
         btnBaralho.setPreferredSize(new Dimension(150, 130));
@@ -1186,7 +1108,6 @@ public class AppGUI {
                         + "⚠️ Se o baralho zerar na hora de comprar, você perde o jogo na hora!",
                 "Baralho", JOptionPane.INFORMATION_MESSAGE));
 
-        // Zona Morta — pilha de descarte com os Pokémon nocauteados (o último a morrer fica visível em cima)
         List<CartaPokemon> zonaMorta = jogadorAtual.getZonaMorta();
         JButton btnZonaMorta = new JButton(construirRotuloZonaMorta(zonaMorta));
         btnZonaMorta.setPreferredSize(new Dimension(150, 130));
@@ -1234,10 +1155,6 @@ public class AppGUI {
         JOptionPane.showMessageDialog(frame, sb.toString(), "Zona Morta", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    /**
-     * Cria um espaço vazio do mesmo tamanho de um botão de campo, usado pra alinhar
-     * o Ativo exatamente em cima do Banco 3 (mesma largura de coluna nos dois grids).
-     */
     private JPanel criarEspacoInvisivel() {
         JPanel espaco = new JPanel();
         espaco.setOpaque(false);
@@ -1289,7 +1206,6 @@ public class AppGUI {
             if (carta instanceof CartaPokemon) {
                 CartaPokemon p = (CartaPokemon) carta;
 
-                // Esconde evoluções cuja forma base ainda não está em campo (mesma regra do terminal)
                 if (!p.isBasico() && !jogadorAtual.baseEmCampo(p.getEvoluiDe())) {
                     continue;
                 }
@@ -1329,8 +1245,6 @@ public class AppGUI {
             }
         }
     }
-
-    // ---------- AÇÕES: CLIQUE NUM POKÉMON EM CAMPO ----------
 
     private void abrirMenuPokemon(CartaPokemon pokemon, int indiceBanco) {
         if (ehTurnoDoBot) return;
@@ -1397,8 +1311,6 @@ public class AppGUI {
         jogadorAtual.evoluir(indiceNaMao, alvo, numeroTurno);
     }
 
-    // ---------- AÇÕES: CLIQUE NUMA CARTA DA MÃO ----------
-
     private void acaoClicarCartaPokemon(int indiceNaMao, CartaPokemon carta) {
         if (ehTurnoDoBot) return;
         if (!carta.isBasico()) {
@@ -1460,11 +1372,10 @@ public class AppGUI {
     }
 
     private void usarEvolucaoRapidaFluxo(int indiceCartaTreinador) {
-        // Passo 1: escolher qual Pokémon em campo vai evoluir
+
         CartaPokemon alvo = escolherPokemonEmCampoDialog("Evolução Rápida — qual Pokémon vai evoluir?");
         if (alvo == null) return;
 
-        // Passo 2: procurar na mão as cartas de evolução compatíveis com esse Pokémon
         List<Carta> mao = jogadorAtual.getMao();
         java.util.List<Integer> indicesValidos = new java.util.ArrayList<>();
         java.util.List<String> nomesValidos = new java.util.ArrayList<>();
@@ -1496,9 +1407,6 @@ public class AppGUI {
         jogadorAtual.usarEvolucaoRapida(indiceCartaTreinador, indiceCartaEvolucao, alvo);
     }
 
-    /**
-     * Mostra um diálogo listando o Ativo + Banco do jogador atual, e retorna o Pokémon escolhido (ou null).
-     */
     private CartaPokemon escolherPokemonEmCampoDialog(String titulo) {
         java.util.List<CartaPokemon> opcoesPokemon = new java.util.ArrayList<>();
         java.util.List<String> nomes = new java.util.ArrayList<>();
@@ -1524,13 +1432,6 @@ public class AppGUI {
         return opcoesPokemon.get(nomes.indexOf(escolha));
     }
 
-    // ---------- AÇÕES: BOTÕES DE RODAPÉ ----------
-
-    /**
-     * Efeito visual de ataque: um flash colorido rápido cobrindo a tela inteira, que aparece
-     * na hora e depois desaparece suavemente. Usa o glass pane da janela (flashPane), então
-     * funciona por cima de qualquer coisa, sem bagunçar o layout normal da tela.
-     */
     private void mostrarFlashDeAtaque(Color cor) {
         corFlash = cor;
 
@@ -1539,9 +1440,9 @@ public class AppGUI {
         timer.addActionListener(e -> {
             passo[0]++;
             if (passo[0] <= 4) {
-                alphaFlash = 140; // sobe rápido pro pico
+                alphaFlash = 140;
             } else {
-                alphaFlash = Math.max(0, alphaFlash - 15); // depois desce suave
+                alphaFlash = Math.max(0, alphaFlash - 15);
             }
             flashPane.repaint();
 
@@ -1552,12 +1453,8 @@ public class AppGUI {
         timer.start();
     }
 
-    /**
-     * Mostra uma notificação (toast) no canto da tela — aparece na hora e some sozinha depois
-     * de alguns segundos. Usada pra tudo que antes só aparecia no log (ex: "não pode atacar agora").
-     */
     private void mostrarNotificacao(String texto) {
-        if (frame == null || !frame.isShowing()) return; // ainda não tem janela pra mostrar em cima
+        if (frame == null || !frame.isShowing()) return;
 
         JLabel toast = new JLabel("<html><div style='padding:4px 8px;'>" + texto + "</div></html>");
         toast.setOpaque(true);
