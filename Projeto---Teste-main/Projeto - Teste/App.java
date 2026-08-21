@@ -1,7 +1,7 @@
 import java.util.Scanner;
 
 public class App {
-    // Índices do array de disponibilidade de times: 0 = Água, 1 = Fogo, 2 = Planta
+
     private static final int AGUA = 0;
     private static final int FOGO = 1;
     private static final int PLANTA = 2;
@@ -9,7 +9,6 @@ public class App {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
 
-        // ---------- CRIAÇÃO DOS 2 JOGADORES ----------
         System.out.println("=========== POKÉMON TCG - MODO VERSUS ===========");
 
         System.out.print("Digite o nome do Treinador 1: ");
@@ -20,18 +19,14 @@ public class App {
         String nome2 = scanner.nextLine();
         Jogador jogador2 = new Jogador(nome2);
 
-        // Times disponíveis, compartilhado entre os dois jogadores.
-        // Assim que um time é escolhido por alguém, ele some da lista do outro também.
-        boolean[] timesDisponiveis = { true, true, true }; // Água, Fogo, Planta
+        boolean[] timesDisponiveis = { true, true, true };
 
         escolherTimes(scanner, jogador1, timesDisponiveis);
         escolherTimes(scanner, jogador2, timesDisponiveis);
 
-        // Cartas de Treinador (Poção e Troca) — independem do time, todo mundo recebe
         adicionarCartasTreinador(jogador1);
         adicionarCartasTreinador(jogador2);
 
-        // Embaralha os baralhos e compra a mão inicial de cada jogador
         int tamanhoMaoInicial = 6;
         jogador1.verificarBaralho();
         jogador2.verificarBaralho();
@@ -42,7 +37,6 @@ public class App {
         System.out.println("🃏 " + jogador2.getNome() + " comprando mão inicial...");
         for (int i = 0; i < tamanhoMaoInicial; i++) jogador2.comprarCarta();
 
-        // ---------- LOOP PRINCIPAL - TURNOS ALTERNADOS ----------
         Jogador jogadorAtual = jogador1;
         Jogador adversario = jogador2;
 
@@ -55,7 +49,6 @@ public class App {
         while (jogando) {
             System.out.println("\n######################## TURNO " + numeroTurno + " - VEZ DE " + jogadorAtual.getNome().toUpperCase() + " ########################");
 
-            // ---- PASSO 1: Compra obrigatória (exceto no primeiríssimo turno, que já teve a mão inicial) ----
             boolean ehPrimeiroTurnoDoJogadorAtual = (jogadorAtual == jogador1) ? jogador1PrimeiroTurno : jogador2PrimeiroTurno;
             if (!ehPrimeiroTurnoDoJogadorAtual) {
                 boolean conseguiuComprar = jogadorAtual.comprarCarta();
@@ -70,7 +63,6 @@ public class App {
                 else jogador2PrimeiroTurno = false;
             }
 
-            // Libera novamente a evolução dos Pokémon deste jogador pro turno que está começando
             jogadorAtual.resetarEvolucoesDoTurno();
 
             jogadorAtual.mostrarTabuleiro();
@@ -153,7 +145,7 @@ public class App {
                 boolean atacou = jogadorAtual.atacar(adversario);
 
                 if (atacou) {
-                    // Passo 3: atacar encerra o turno imediatamente
+
                     jogadorAtual.encerrarRodada();
                     System.out.println("➡️ Turno encerrado automaticamente após o ataque.");
 
@@ -167,7 +159,6 @@ public class App {
             } else if (opcao == 7) {
                 jogadorAtual.encerrarRodada();
 
-                // Troca de turno: quem jogava vira adversário, e vice-versa
                 Jogador troca = jogadorAtual;
                 jogadorAtual = adversario;
                 adversario = troca;
@@ -186,8 +177,6 @@ public class App {
 
         scanner.close();
     }
-
-    // ---------- ESCOLHA DE TIME (com exclusividade entre os jogadores) ----------
 
     private static void escolherTimes(Scanner scanner, Jogador jogador, boolean[] disponivel) {
         boolean escolheu = false;
@@ -235,10 +224,6 @@ public class App {
         }
     }
 
-    // ---------- TIMES DISPONÍVEIS ----------
-    // Cada método adiciona a linha evolutiva completa daquele elemento no baralho, com múltiplas cópias
-    // (regra oficial: até 4 cópias por carta com o mesmo nome). Básicos x3, evoluções x2, lendários x1.
-
     static void adicionarCopias(Jogador jogador, String nome, String tipo, int hp, int dano, String evoluiDe, int copias) {
         for (int i = 0; i < copias; i++) {
             if (evoluiDe == null) {
@@ -284,7 +269,7 @@ public class App {
         adicionarCopias(jogador, "Monferno", "Fogo", 70, 35, "Chimchar", 4);
         adicionarCopias(jogador, "Infernape", "Fogo", 115, 80, "Monferno", 3);
 
-        adicionarCopias(jogador, "Entei", "Fogo", 120, 70, null, 2); // Lendário, não evolui, raro (2 cópias)
+        adicionarCopias(jogador, "Entei", "Fogo", 120, 70, null, 2);
     }
 
     static void adicionarTimePlanta(Jogador jogador) {
@@ -304,11 +289,8 @@ public class App {
         adicionarCopias(jogador, "Dartrix", "Planta", 65, 28, "Rowlet", 4);
         adicionarCopias(jogador, "Decidueye", "Planta", 115, 72, "Dartrix", 2);
 
-        adicionarCopias(jogador, "Celebi", "Planta", 100, 60, null, 2); // Lendário, não evolui, raro (2 cópias)
+        adicionarCopias(jogador, "Celebi", "Planta", 100, 60, null, 2);
     }
-
-    // ---------- CARTAS DE TREINADOR ----------
-    // Independem do time escolhido — todo jogador recebe as mesmas cartas de item
 
     static void adicionarCartasTreinador(Jogador jogador) {
         for (int i = 0; i < 4; i++) jogador.adicionarAoBaralho(new CartaTreinador("Poção", "Poção"));
