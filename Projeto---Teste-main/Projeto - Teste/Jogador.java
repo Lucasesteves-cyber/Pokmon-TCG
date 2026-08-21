@@ -8,9 +8,8 @@ public class Jogador {
     private List<Carta> mao;
     private CartaPokemon pokemonAtivo;
     private List<CartaPokemon> banco;
-    private List<CartaPokemon> zonaMorta; // Pokémon nocauteados; o último a morrer fica no topo da pilha
+    private List<CartaPokemon> zonaMorta;
 
-    // Controle de limite de jogadas por rodada
     private boolean energiaAnexadaNestaRodada;
     private boolean atacouNestaRodada;
     private boolean recuouNesteTurno;
@@ -35,10 +34,6 @@ public class Jogador {
         Collections.shuffle(this.baralho);
     }
 
-    /**
-     * Compra 1 carta do topo do baralho. Retorna false se o baralho estava vazio
-     * (nesse caso, segundo a regra oficial, o jogador perde o jogo imediatamente).
-     */
     public boolean comprarCarta() {
         if (!baralho.isEmpty()) {
             Carta cartaComprada = baralho.remove(0);
@@ -55,11 +50,6 @@ public class Jogador {
         return baralho.size();
     }
 
-    /**
-     * Coloca um Pokémon Básico da mão em campo, deixando o jogador escolher o destino:
-     * destino 0 = Pokémon Ativo | destino 1 = Banco de Reservas
-     * Sem limite de quantidade por turno (regra oficial: pode baixar quantos Básicos quiser).
-     */
     public void colocarPokemonEmCampo(int indiceNaMao, int destino) {
         if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
             System.out.println("Posição inválida na mão!");
@@ -106,14 +96,6 @@ public class Jogador {
         }
     }
 
-    // ---------- NOVO: ANEXAR ENERGIA (Energia é ilimitada, o limite é por Pokémon) ----------
-
-    /**
-     * Anexa uma Energia a um Pokémon em campo. A energia em si é infinita (não gasta carta da mão),
-     * mas cada Pokémon tem uma capacidade máxima própria (entre 6 e 8, sorteada na criação).
-     * @param destino Pokémon que vai receber a energia (ativo ou do banco)
-     * @return true se a energia foi anexada com sucesso
-     */
     public boolean anexarEnergia(CartaPokemon destino) {
         if (energiaAnexadaNestaRodada) {
             System.out.println("⚠️ Você já anexou uma Energia nesta rodada! Só é permitida 1 por rodada.");
@@ -140,10 +122,6 @@ public class Jogador {
         return true;
     }
 
-    /**
-     * Retorna um Pokémon do campo (ativo ou banco) a partir de um índice escolhido no menu.
-     * indice 0 = ativo; indice 1..5 = banco (posição 1 a 5)
-     */
     public CartaPokemon getPokemonDoCampoPorIndice(int indice) {
         if (indice == 0) {
             return pokemonAtivo;
@@ -153,14 +131,6 @@ public class Jogador {
         return null;
     }
 
-    // ---------- NOVO: EVOLUÇÃO ----------
-
-    /**
-     * Evolui um Pokémon que já está em campo (Ativo ou Banco), usando uma carta de evolução da mão.
-     * Mantém o dano sofrido (proporcionalmente) e transfere as energias já anexadas.
-     * Regra oficial: cada Pokémon só pode evoluir 1x por turno (mas você pode evoluir vários Pokémon
-     * diferentes no mesmo turno). Simplificação: evolução só é permitida a partir do Turno 2 em diante.
-     */
     public boolean evoluir(int indiceNaMao, CartaPokemon alvoEmCampo, int turnoAtual) {
         if (turnoAtual < 2) {
             System.out.println("⚠️ Evolução só é permitida a partir do Turno 2! Espere o próximo turno.");
@@ -175,11 +145,6 @@ public class Jogador {
         return executarEvolucao(indiceNaMao, alvoEmCampo);
     }
 
-    /**
-     * Faz a evolução em si (validações de carta + substituição em campo). Reaproveitado tanto pela
-     * evolução normal (evoluir) quanto pela carta de Treinador "Evolução Rápida" (que ignora as
-     * restrições de turno).
-     */
     private boolean executarEvolucao(int indiceNaMao, CartaPokemon alvoEmCampo) {
         if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
             System.out.println("Posição inválida na mão!");
@@ -211,10 +176,8 @@ public class Jogador {
             return false;
         }
 
-        // Calcula o dano que o Pokémon já tinha sofrido, pra manter a "sequência" da batalha
         int danoJaSofrido = alvoEmCampo.getHpMaximo() - alvoEmCampo.getHpAtual();
 
-        // Transfere as energias já anexadas para a nova forma evoluída
         for (CartaEnergia energia : alvoEmCampo.getEnergiasAnexadas()) {
             cartaEvolucao.anexarEnergia(energia);
         }
@@ -223,7 +186,6 @@ public class Jogador {
             cartaEvolucao.receberDano(danoJaSofrido);
         }
 
-        // Substitui o Pokémon antigo pela evolução, no mesmo lugar em que ele estava (Ativo ou Banco)
         if (alvoEmCampo == pokemonAtivo) {
             pokemonAtivo = cartaEvolucao;
         } else {
@@ -236,17 +198,12 @@ public class Jogador {
         }
 
         mao.remove(indiceNaMao);
-        cartaEvolucao.setEvoluiuNesteTurno(true); // essa nova forma já não pode evoluir de novo neste mesmo turno
+        cartaEvolucao.setEvoluiuNesteTurno(true);
 
         System.out.println("\n✨ " + alvoEmCampo.getNome() + " evoluiu para " + cartaEvolucao.getNome() + "!");
         return true;
     }
 
-    /**
-     * Usa a carta de Treinador "Evolução Rápida": evolui um Pokémon em campo na hora, ignorando
-     * a regra de Turno 2 e a de "1x por Pokémon por turno". Ainda precisa ter a carta de evolução
-     * certa na mão (mesma regra de linhagem — não pula estágios, tipo Froakie direto pra Greninja).
-     */
     public boolean usarEvolucaoRapida(int indiceCartaTreinador, int indiceCartaEvolucao, CartaPokemon alvoEmCampo) {
         if (indiceCartaTreinador < 0 || indiceCartaTreinador >= mao.size()) {
             System.out.println("Posição inválida na mão!");
@@ -259,13 +216,11 @@ public class Jogador {
             return false;
         }
 
-        // Remove a carta de evolução da mão primeiro (localizando pelo índice atual)
         boolean sucesso = executarEvolucao(indiceCartaEvolucao, alvoEmCampo);
         if (!sucesso) {
             return false;
         }
 
-        // Remove a carta de Treinador da mão (a de evolução já foi removida dentro de executarEvolucao)
         int indiceTreinadorAtualizado = mao.indexOf(cartaTreinador);
         if (indiceTreinadorAtualizado != -1) {
             mao.remove(indiceTreinadorAtualizado);
@@ -275,21 +230,11 @@ public class Jogador {
         return true;
     }
 
-    /**
-     * Libera novamente a evolução de todos os Pokémon deste jogador (Ativo + Banco).
-     * Deve ser chamado no início do turno deste jogador.
-     */
     public void resetarEvolucoesDoTurno() {
         if (pokemonAtivo != null) pokemonAtivo.setEvoluiuNesteTurno(false);
         for (CartaPokemon p : banco) p.setEvoluiuNesteTurno(false);
     }
 
-    // ---------- NOVO: ATAQUE ----------
-
-    /**
-     * O Pokémon ativo deste jogador ataca o Pokémon ativo do oponente.
-     * Regra simples: precisa de pelo menos 1 energia anexada para atacar.
-     */
     public boolean atacar(Jogador oponente) {
         if (atacouNestaRodada) {
             System.out.println("⚠️ Você já atacou nesta rodada! Só é permitido 1 ataque por rodada.");
@@ -326,7 +271,7 @@ public class Jogador {
 
         if (alvo.isNocauteado()) {
             System.out.println("☠️ " + alvo.getNome() + " foi Nocauteado!");
-            oponente.zonaMorta.add(alvo); // vai pro topo da pilha da Zona Morta do dono dele
+            oponente.zonaMorta.add(alvo);
             oponente.pokemonAtivo = null;
 
             if (!oponente.banco.isEmpty()) {
@@ -343,22 +288,12 @@ public class Jogador {
         return true;
     }
 
-    /**
-     * Triângulo de fraquezas simplificado: Água é forte contra Fogo, Fogo é forte contra Planta,
-     * Planta é forte contra Água. Quando o atacante tem vantagem de tipo, o dano dobra.
-     */
     private boolean eSuperEfetivo(String tipoAtacante, String tipoDefensor) {
         return (tipoAtacante.equalsIgnoreCase("Água") && tipoDefensor.equalsIgnoreCase("Fogo"))
                 || (tipoAtacante.equalsIgnoreCase("Fogo") && tipoDefensor.equalsIgnoreCase("Planta"))
                 || (tipoAtacante.equalsIgnoreCase("Planta") && tipoDefensor.equalsIgnoreCase("Água"));
     }
 
-    // ---------- NOVO: RECUAR (trocar o Ativo por um do Banco) ----------
-
-    /**
-     * Faz a troca física: tira o Ativo, bota ele no Banco, e um Pokémon do Banco assume o Ativo.
-     * Método interno reaproveitado tanto pelo Recuo normal (paga custo) quanto pela carta Troca (grátis).
-     */
     private void trocarAtivoComBanco(int indiceBanco) {
         CartaPokemon antigoAtivo = pokemonAtivo;
         CartaPokemon novoAtivo = banco.remove(indiceBanco);
@@ -367,11 +302,6 @@ public class Jogador {
         System.out.println("\n🔄 " + nome + " trocou " + antigoAtivo.getNome() + " e colocou " + pokemonAtivo.getNome() + " como novo Ativo!");
     }
 
-    /**
-     * Recua o Pokémon Ativo, pagando o custo de recuo (descarta energia dele), e coloca
-     * um Pokémon do Banco no lugar. Simplificação: custo de recuo fixo = 1 energia pra todos.
-     * Regra oficial: só 1 recuo por turno.
-     */
     public boolean recuar(int indiceBanco) {
         final int CUSTO_RECUO = 1;
 
@@ -401,7 +331,6 @@ public class Jogador {
             return false;
         }
 
-        // Paga o custo de recuo descartando energia do Ativo
         for (int i = 0; i < CUSTO_RECUO; i++) {
             pokemonAtivo.getEnergiasAnexadas().remove(0);
         }
@@ -411,11 +340,6 @@ public class Jogador {
         return true;
     }
 
-    // ---------- NOVO: CARTAS DE TREINADOR (Poção e Troca) ----------
-
-    /**
-     * Usa uma carta de Poção da mão, curando 30 HP de um Pokémon em campo.
-     */
     public boolean usarPocao(int indiceNaMao, CartaPokemon alvo) {
         if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
             System.out.println("Posição inválida na mão!");
@@ -442,9 +366,6 @@ public class Jogador {
         return true;
     }
 
-    /**
-     * Usa uma carta de Cura Total da mão, restaurando o HP de um Pokémon completamente até o máximo.
-     */
     public boolean usarCuraTotal(int indiceNaMao, CartaPokemon alvo) {
         if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
             System.out.println("Posição inválida na mão!");
@@ -462,7 +383,7 @@ public class Jogador {
             return false;
         }
 
-        alvo.curar(alvo.getHpMaximo()); // curar() já trava no máximo sozinho
+        alvo.curar(alvo.getHpMaximo());
         mao.remove(indiceNaMao);
 
         System.out.println("\n💖 " + nome + " usou Cura Total em " + alvo.getNome() + "! HP restaurado por completo. ("
@@ -470,10 +391,6 @@ public class Jogador {
         return true;
     }
 
-    /**
-     * Usa uma carta de Troca da mão: recua o Ativo de graça, sem gastar energia e sem contar
-     * no limite de 1x recuo por turno (é um item, não uma ação normal de recuo).
-     */
     public boolean usarTroca(int indiceNaMao, int indiceBanco) {
         if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
             System.out.println("Posição inválida na mão!");
@@ -508,9 +425,6 @@ public class Jogador {
         return true;
     }
 
-    /**
-     * Encerra o turno deste jogador, liberando novamente as ações de 1x por turno.
-     */
     public void encerrarRodada() {
         energiaAnexadaNestaRodada = false;
         atacouNestaRodada = false;
@@ -525,7 +439,7 @@ public class Jogador {
     public void mostrarTabuleiro() {
         System.out.println("\n================ TABULEIRO DE " + nome.toUpperCase() + " ================");
         System.out.println("🔴 POKÉMON ATIVO: " + (pokemonAtivo != null ? pokemonAtivo : "[Nenhum]"));
-        
+
         System.out.print("🔵 BANCO DE RESERVAS: ");
         if (banco.isEmpty()) {
             System.out.println("[Vazio]");
@@ -536,7 +450,7 @@ public class Jogador {
             }
             System.out.println();
         }
-        
+
         System.out.println("🃏 CARTAS NA MÃO: " + mao.size() + " cartas.");
         System.out.println("📚 BARALHO: " + getTamanhoBaralho() + " cartas restantes.");
         System.out.println("---- Limites do turno ----");
@@ -546,10 +460,6 @@ public class Jogador {
         System.out.println("====================================================\n");
     }
 
-    /**
-     * Verifica se um Pokémon com esse nome já está em campo (Ativo ou Banco).
-     * Usado pra saber se uma evolução pode "aparecer" como disponível pro jogador.
-     */
     public boolean baseEmCampo(String nomePokemon) {
         if (nomePokemon == null) return false;
 
@@ -579,7 +489,6 @@ public class Jogador {
             if (mao.get(i) instanceof CartaPokemon) {
                 CartaPokemon p = (CartaPokemon) mao.get(i);
 
-                // Só mostra a evolução se a forma base dela já estiver em campo
                 if (!p.isBasico() && !baseEmCampo(p.getEvoluiDe())) {
                     evolucoesEscondidas++;
                     continue;
