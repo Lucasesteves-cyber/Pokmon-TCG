@@ -24,6 +24,8 @@ public class AppGUI {
     private JPanel campoJogadorPanel;
     private JPanel maoPanel;
     private JTextArea logArea;
+    private JScrollPane logScroll; // fica escondido até o jogador clicar em "Ver Histórico"
+    private final java.util.List<JComponent> toastsAtivos = new java.util.ArrayList<>(); // notificações na tela
     private JPanel flashPane; // camada transparente usada pro efeito visual de ataque
     private int alphaFlash = 0;
     private Color corFlash = Color.RED;
@@ -101,6 +103,9 @@ public class AppGUI {
         POKEDEX.put("Decidueye", 724);
     }
 
+    // Marca de versão visível — ajuda a confirmar se a versão rodando é a mais nova (aparece no título da janela)
+    private static final String VERSAO_BUILD = "build: Gen 1-6";
+
     public static void main(String[] args) {
         // Usa o Look and Feel "Metal" pra garantir que as cores dos botões apareçam
         // (o visual nativo do Windows às vezes ignora cor de fundo customizada em botão)
@@ -170,7 +175,7 @@ public class AppGUI {
         int escolha = JOptionPane.showOptionDialog(
                 null,
                 "Como você quer jogar?",
-                "Pokémon TCG",
+                "Pokémon TCG [" + VERSAO_BUILD + "]",
                 JOptionPane.DEFAULT_OPTION,
                 JOptionPane.QUESTION_MESSAGE,
                 null,
@@ -458,7 +463,11 @@ public class AppGUI {
         sulPanel.add(statusLabel, BorderLayout.NORTH);
         sulPanel.add(rodapePanel, BorderLayout.SOUTH);
 
-        dialog.add(geracoesPanel, BorderLayout.NORTH);
+        JScrollPane geracoesScroll = new JScrollPane(geracoesPanel,
+                JScrollPane.VERTICAL_SCROLLBAR_NEVER, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        geracoesScroll.setBorder(BorderFactory.createEmptyBorder());
+        geracoesScroll.setPreferredSize(new Dimension(600, 50));
+        dialog.add(geracoesScroll, BorderLayout.NORTH);
         dialog.add(listaScroll, BorderLayout.CENTER);
         dialog.add(sulPanel, BorderLayout.SOUTH);
 
@@ -633,7 +642,7 @@ public class AppGUI {
 
 
     private void montarJanela() {
-        frame = new JFrame("Pokémon TCG - Versus");
+        frame = new JFrame("Pokémon TCG - Versus [" + VERSAO_BUILD + "]");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1100, 800); // tamanho usado caso o usuário desmaximize a janela depois
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH); // abre já em tela cheia (maximizada)
@@ -652,7 +661,9 @@ public class AppGUI {
             }
         };
         flashPane.setOpaque(false);
+        flashPane.setLayout(null); // posicionamento livre, usado pelas notificações (toasts)
         frame.setGlassPane(flashPane);
+        flashPane.setVisible(true); // fica sempre "ligado" (mas transparente) pra poder mostrar toast a qualquer momento
 
         // ---- TOPO: banner colorido com informações do turno ----
         JPanel topoPanel = new JPanel(new GridLayout(2, 1));
@@ -671,11 +682,11 @@ public class AppGUI {
         topoPanel.add(adversarioLabel);
         frame.add(topoPanel, BorderLayout.NORTH);
 
-        // ---- CENTRO: campo + mão (esquerda) e log (direita) ----
-        JPanel centroEsquerda = new JPanel();
-        centroEsquerda.setLayout(new BoxLayout(centroEsquerda, BoxLayout.Y_AXIS));
-        centroEsquerda.setBackground(COR_FUNDO);
-        centroEsquerda.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 5));
+        // ---- CENTRO: campo + mão, ocupando a tela toda (sem o log fixo do lado) ----
+        JPanel centroPanel = new JPanel();
+        centroPanel.setLayout(new BoxLayout(centroPanel, BoxLayout.Y_AXIS));
+        centroPanel.setBackground(COR_FUNDO);
+        centroPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         campoJogadorPanel = new JPanel();
         campoJogadorPanel.setBackground(COR_FUNDO);
@@ -687,28 +698,25 @@ public class AppGUI {
         maoPanel.setBorder(criarBordaTitulo("🃏 Sua Mão (clique numa carta pra jogar)"));
         maoPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 10));
         JScrollPane maoScroll = new JScrollPane(maoPanel);
-        maoScroll.setPreferredSize(new Dimension(620, 240));
+        maoScroll.setPreferredSize(new Dimension(620, 260));
         maoScroll.setBorder(BorderFactory.createEmptyBorder());
 
-        centroEsquerda.add(campoJogadorPanel);
-        centroEsquerda.add(Box.createVerticalStrut(28)); // desce mais a mão, separando bem do campo
-        centroEsquerda.add(maoScroll);
+        centroPanel.add(campoJogadorPanel);
+        centroPanel.add(Box.createVerticalStrut(28)); // desce mais a mão, separando bem do campo
+        centroPanel.add(maoScroll);
 
+        frame.add(centroPanel, BorderLayout.CENTER);
+
+        // Log continua existindo por trás dos panos (recebe todas as mensagens), só não fica mais
+        // fixo na tela — agora só aparece quando o jogador clica em "Ver Histórico"
         logArea = new JTextArea();
         logArea.setEditable(false);
         logArea.setFont(new Font("Consolas", Font.PLAIN, 12));
         logArea.setBackground(new Color(28, 28, 38));
         logArea.setForeground(new Color(180, 255, 180));
         logArea.setMargin(new Insets(8, 8, 8, 8));
-        JScrollPane logScroll = new JScrollPane(logArea);
+        logScroll = new JScrollPane(logArea);
         logScroll.setBorder(criarBordaTitulo("📜 Log da Partida"));
-        logScroll.setPreferredSize(new Dimension(320, 400));
-
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, centroEsquerda, logScroll);
-        splitPane.setResizeWeight(0.68);
-        splitPane.setBorder(BorderFactory.createEmptyBorder());
-        splitPane.setBackground(COR_FUNDO);
-        frame.add(splitPane, BorderLayout.CENTER);
 
         // ---- RODAPÉ: botões de ação geral ----
         JPanel rodapePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 12));
@@ -720,13 +728,30 @@ public class AppGUI {
         JButton btnPassar = criarBotaoAcao("🏳️ Passar Turno", new Color(96, 125, 139));
         btnPassar.addActionListener(e -> acaoPassarTurno());
 
+        JButton btnHistorico = criarBotaoAcao("📜 Ver Histórico", new Color(84, 58, 133));
+        btnHistorico.addActionListener(e -> abrirHistoricoDialog());
+
         JButton btnSair = criarBotaoAcao("🚪 Sair do Jogo", new Color(66, 66, 66));
         btnSair.addActionListener(e -> System.exit(0));
 
         rodapePanel.add(btnAtacar);
         rodapePanel.add(btnPassar);
+        rodapePanel.add(btnHistorico);
         rodapePanel.add(btnSair);
         frame.add(rodapePanel, BorderLayout.SOUTH);
+    }
+
+    /**
+     * Abre o histórico completo da partida numa janela separada (não trava o jogo,
+     * pode ficar aberta enquanto você continua jogando).
+     */
+    private void abrirHistoricoDialog() {
+        JDialog dialogHistorico = new JDialog(frame, "📜 Histórico da Partida", false);
+        dialogHistorico.setSize(480, 550);
+        dialogHistorico.setLocationRelativeTo(frame);
+        dialogHistorico.setLayout(new BorderLayout());
+        dialogHistorico.add(logScroll, BorderLayout.CENTER);
+        dialogHistorico.setVisible(true);
     }
 
     private javax.swing.border.Border criarBordaTitulo(String titulo) {
@@ -855,10 +880,23 @@ public class AppGUI {
 
     private void redirecionarConsoleParaLog() {
         PrintStream logStream = new PrintStream(new OutputStream() {
+            private final StringBuilder linhaAtual = new StringBuilder();
+
             @Override
             public void write(int b) {
-                logArea.append(String.valueOf((char) b));
+                char c = (char) b;
+                logArea.append(String.valueOf(c));
                 logArea.setCaretPosition(logArea.getDocument().getLength());
+
+                if (c == '\n') {
+                    String linha = linhaAtual.toString().trim();
+                    linhaAtual.setLength(0);
+                    if (!linha.isEmpty()) {
+                        SwingUtilities.invokeLater(() -> mostrarNotificacao(linha));
+                    }
+                } else {
+                    linhaAtual.append(c);
+                }
             }
         }, true);
         System.setOut(logStream);
@@ -1495,7 +1533,6 @@ public class AppGUI {
      */
     private void mostrarFlashDeAtaque(Color cor) {
         corFlash = cor;
-        flashPane.setVisible(true);
 
         Timer timer = new Timer(25, null);
         final int[] passo = {0};
@@ -1509,11 +1546,62 @@ public class AppGUI {
             flashPane.repaint();
 
             if (alphaFlash <= 0 && passo[0] > 4) {
-                flashPane.setVisible(false);
                 timer.stop();
             }
         });
         timer.start();
+    }
+
+    /**
+     * Mostra uma notificação (toast) no canto da tela — aparece na hora e some sozinha depois
+     * de alguns segundos. Usada pra tudo que antes só aparecia no log (ex: "não pode atacar agora").
+     */
+    private void mostrarNotificacao(String texto) {
+        if (frame == null || !frame.isShowing()) return; // ainda não tem janela pra mostrar em cima
+
+        JLabel toast = new JLabel("<html><div style='padding:4px 8px;'>" + texto + "</div></html>");
+        toast.setOpaque(true);
+        toast.setBackground(new Color(33, 33, 66, 235));
+        toast.setForeground(Color.WHITE);
+        toast.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        toast.setBorder(BorderFactory.createLineBorder(new Color(255, 255, 255, 90), 1));
+
+        Dimension tamanhoPreferido = toast.getPreferredSize();
+        int largura = Math.min(460, Math.max(220, tamanhoPreferido.width + 16));
+        int altura = 36;
+        int margem = 18;
+
+        int x = frame.getWidth() - largura - margem;
+        int y = frame.getHeight() - margem - altura - (toastsAtivos.size() * (altura + 8));
+
+        toast.setBounds(x, Math.max(10, y), largura, altura);
+
+        flashPane.add(toast);
+        flashPane.setComponentZOrder(toast, 0);
+        toastsAtivos.add(toast);
+        flashPane.revalidate();
+        flashPane.repaint();
+
+        Timer timer = new Timer(2800, e -> {
+            flashPane.remove(toast);
+            toastsAtivos.remove(toast);
+            reposicionarToasts();
+            flashPane.revalidate();
+            flashPane.repaint();
+        });
+        timer.setRepeats(false);
+        timer.start();
+    }
+
+    private void reposicionarToasts() {
+        int altura = 36;
+        int margem = 18;
+        for (int i = 0; i < toastsAtivos.size(); i++) {
+            JComponent t = toastsAtivos.get(i);
+            int x = frame.getWidth() - t.getWidth() - margem;
+            int y = frame.getHeight() - margem - altura - (i * (altura + 8));
+            t.setLocation(x, Math.max(10, y));
+        }
     }
 
     private void acaoAtacar() {
