@@ -152,19 +152,120 @@ public class AppGUI {
         iniciarTurno();
     }
 
+    private Image imagemMenuPokebola;
+    private Image imagemMenuPikachu;
+    private Image imagemMenuCharizard;
+
     private boolean escolherModoDialog() {
-        Object[] opcoes = { "🎮 Solo (vs Bot)", "👥 PvP (2 Jogadores)" };
-        int escolha = JOptionPane.showOptionDialog(
-                null,
-                "Como você quer jogar?",
-                "Pokémon TCG [" + VERSAO_BUILD + "]",
-                JOptionPane.DEFAULT_OPTION,
-                JOptionPane.QUESTION_MESSAGE,
-                null,
-                opcoes,
-                opcoes[0]
-        );
-        return escolha == 0;
+        final boolean[] resultado = { true };
+
+        JDialog menuDialog = new JDialog((Frame) null, "Pokémon TCG", true);
+        menuDialog.setSize(900, 650);
+        menuDialog.setLocationRelativeTo(null);
+        menuDialog.setResizable(false);
+        menuDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+
+        JPanel fundoPanel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+
+                GradientPaint gradiente = new GradientPaint(0, 0, new Color(20, 20, 45), 0, getHeight(), new Color(55, 40, 95));
+                g2.setPaint(gradiente);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+
+                if (imagemMenuPokebola != null) {
+                    int tamanho = 380;
+                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.18f));
+                    g2.drawImage(imagemMenuPokebola, (getWidth() - tamanho) / 2, 30, tamanho, tamanho, this);
+                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+                }
+                if (imagemMenuPikachu != null) {
+                    g2.drawImage(imagemMenuPikachu, -40, getHeight() - 330, 320, 320, this);
+                }
+                if (imagemMenuCharizard != null) {
+                    g2.drawImage(imagemMenuCharizard, getWidth() - 300, getHeight() - 330, 320, 320, this);
+                }
+            }
+        };
+        fundoPanel.setLayout(null);
+        fundoPanel.setPreferredSize(new Dimension(900, 650));
+
+        JLabel titulo = new JLabel("POKÉMON TCG", SwingConstants.CENTER);
+        titulo.setFont(new Font("Segoe UI", Font.BOLD, 52));
+        titulo.setForeground(Color.WHITE);
+        titulo.setBounds(0, 40, 900, 80);
+
+        JLabel subtitulo = new JLabel("[" + VERSAO_BUILD + "]", SwingConstants.CENTER);
+        subtitulo.setFont(new Font("Segoe UI", Font.ITALIC, 14));
+        subtitulo.setForeground(new Color(210, 210, 230));
+        subtitulo.setBounds(0, 118, 900, 25);
+
+        JButton btnSolo = criarBotaoMenuPrincipal("🎮 Jogar vs Bot");
+        btnSolo.setBounds(300, 330, 300, 60);
+        btnSolo.addActionListener(e -> {
+            resultado[0] = true;
+            menuDialog.dispose();
+        });
+
+        JButton btnPvp = criarBotaoMenuPrincipal("👥 PvP (2 Jogadores)");
+        btnPvp.setBounds(300, 410, 300, 60);
+        btnPvp.addActionListener(e -> {
+            resultado[0] = false;
+            menuDialog.dispose();
+        });
+
+        JButton btnSair = criarBotaoMenuPrincipal("🚪 Sair");
+        btnSair.setBounds(300, 490, 300, 60);
+        btnSair.addActionListener(e -> System.exit(0));
+
+        fundoPanel.add(titulo);
+        fundoPanel.add(subtitulo);
+        fundoPanel.add(btnSolo);
+        fundoPanel.add(btnPvp);
+        fundoPanel.add(btnSair);
+
+        menuDialog.setContentPane(fundoPanel);
+        carregarImagensMenu(fundoPanel);
+
+        menuDialog.setVisible(true);
+
+        return resultado[0];
+    }
+
+    private JButton criarBotaoMenuPrincipal(String texto) {
+        JButton botao = new JButton(texto);
+        botao.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        botao.setBackground(new Color(255, 193, 7));
+        botao.setForeground(new Color(40, 30, 0));
+        botao.setOpaque(true);
+        botao.setBorderPainted(false);
+        botao.setFocusPainted(false);
+        return botao;
+    }
+
+    private void carregarImagensMenu(JPanel painelParaRepintar) {
+        new Thread(() -> {
+            Image pokebola = baixarImagem("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png");
+            Image pikachu = baixarImagem("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png");
+            Image charizard = baixarImagem("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png");
+
+            SwingUtilities.invokeLater(() -> {
+                imagemMenuPokebola = pokebola;
+                imagemMenuPikachu = pikachu;
+                imagemMenuCharizard = charizard;
+                painelParaRepintar.repaint();
+            });
+        }).start();
+    }
+
+    private Image baixarImagem(String url) {
+        try {
+            return ImageIO.read(java.net.URI.create(url).toURL());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private void construirTimeAleatorioBotComLoading(Jogador bot) {
