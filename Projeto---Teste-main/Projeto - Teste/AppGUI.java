@@ -113,8 +113,7 @@ public class AppGUI {
 
         boolean[] timesDisponiveis = { true, true, true };
 
-        String nome1 = JOptionPane.showInputDialog(null, "Digite o seu nome de Treinador:", "Pokémon TCG", JOptionPane.QUESTION_MESSAGE);
-        if (nome1 == null || nome1.trim().isEmpty()) nome1 = "Treinador 1";
+        String nome1 = pedirNomeEstilizado("Digite o seu nome de Treinador:", "Treinador 1");
         jogador1 = new Jogador(nome1);
         escolherTimeDialog(jogador1, timesDisponiveis);
 
@@ -126,8 +125,7 @@ public class AppGUI {
         } else {
 
             jogadorBot = null;
-            String nome2 = JOptionPane.showInputDialog(null, "Digite o nome do Treinador 2:", "Pokémon TCG - Versus", JOptionPane.QUESTION_MESSAGE);
-            if (nome2 == null || nome2.trim().isEmpty()) nome2 = "Treinador 2";
+            String nome2 = pedirNomeEstilizado("Digite o nome do Treinador 2:", "Treinador 2");
             jogador2 = new Jogador(nome2);
             escolherTimeDialog(jogador2, timesDisponiveis);
         }
@@ -156,12 +154,88 @@ public class AppGUI {
     private Image imagemMenuPikachu;
     private Image imagemMenuCharizard;
 
+    /**
+     * Cria um painel com o visual padrão das telas de abertura: fundo em gradiente escuro
+     * com a Pokébola translúcida atrás. Reaproveitado em todas as telas antes do campo de batalha.
+     */
+    private JPanel criarPainelComFundo() {
+        JPanel painel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+
+                GradientPaint gradiente = new GradientPaint(0, 0, new Color(20, 20, 45), 0, getHeight(), new Color(55, 40, 95));
+                g2.setPaint(gradiente);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+
+                if (imagemMenuPokebola != null) {
+                    int tamanho = Math.min(getWidth(), getHeight()) / 2;
+                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.16f));
+                    g2.drawImage(imagemMenuPokebola, (getWidth() - tamanho) / 2, 30, tamanho, tamanho, this);
+                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+                }
+            }
+        };
+        painel.setLayout(null);
+        painel.setOpaque(true);
+        return painel;
+    }
+
+    /**
+     * Tela estilizada (mesmo visual das outras) pra pedir o nome do treinador,
+     * com campo de texto centralizado ao invés do JOptionPane padrão.
+     */
+    private String pedirNomeEstilizado(String pergunta, String valorPadrao) {
+        final String[] resultado = { valorPadrao };
+        Dimension tela = Toolkit.getDefaultToolkit().getScreenSize();
+
+        JDialog dialogo = new JDialog((Frame) null, "Pokémon TCG", true);
+        dialogo.setSize(tela);
+        dialogo.setLocation(0, 0);
+        dialogo.setResizable(false);
+        dialogo.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+
+        JPanel painel = criarPainelComFundo();
+        painel.setPreferredSize(tela);
+
+        JLabel titulo = new JLabel(pergunta, SwingConstants.CENTER);
+        titulo.setFont(new Font("Segoe UI", Font.BOLD, 30));
+        titulo.setForeground(Color.WHITE);
+        titulo.setBounds(0, tela.height / 2 - 120, tela.width, 50);
+
+        int larguraCampo = 420;
+        JTextField campoTexto = new JTextField();
+        campoTexto.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+        campoTexto.setHorizontalAlignment(JTextField.CENTER);
+        campoTexto.setBounds((tela.width - larguraCampo) / 2, tela.height / 2 - 50, larguraCampo, 48);
+
+        JButton btnConfirmar = criarBotaoMenuPrincipal("✅ Confirmar");
+        btnConfirmar.setBounds((tela.width - 320) / 2, tela.height / 2 + 20, 320, 55);
+        btnConfirmar.addActionListener(e -> {
+            String texto = campoTexto.getText().trim();
+            resultado[0] = texto.isEmpty() ? valorPadrao : texto;
+            dialogo.dispose();
+        });
+        campoTexto.addActionListener(e -> btnConfirmar.doClick()); // Enter também confirma
+
+        painel.add(titulo);
+        painel.add(campoTexto);
+        painel.add(btnConfirmar);
+
+        dialogo.setContentPane(painel);
+        dialogo.setVisible(true);
+
+        return resultado[0];
+    }
+
     private boolean escolherModoDialog() {
         final boolean[] resultado = { true };
+        Dimension tela = Toolkit.getDefaultToolkit().getScreenSize();
 
         JDialog menuDialog = new JDialog((Frame) null, "Pokémon TCG", true);
-        menuDialog.setSize(900, 650);
-        menuDialog.setLocationRelativeTo(null);
+        menuDialog.setSize(tela);
+        menuDialog.setLocation(0, 0);
         menuDialog.setResizable(false);
         menuDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
 
@@ -176,9 +250,9 @@ public class AppGUI {
                 g2.fillRect(0, 0, getWidth(), getHeight());
 
                 if (imagemMenuPokebola != null) {
-                    int tamanho = 380;
+                    int tamanho = Math.min(getWidth(), getHeight()) / 2;
                     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.18f));
-                    g2.drawImage(imagemMenuPokebola, (getWidth() - tamanho) / 2, 30, tamanho, tamanho, this);
+                    g2.drawImage(imagemMenuPokebola, (getWidth() - tamanho) / 2, 40, tamanho, tamanho, this);
                     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
                 }
                 if (imagemMenuPikachu != null) {
@@ -190,34 +264,38 @@ public class AppGUI {
             }
         };
         fundoPanel.setLayout(null);
-        fundoPanel.setPreferredSize(new Dimension(900, 650));
+        fundoPanel.setPreferredSize(tela);
 
         JLabel titulo = new JLabel("POKÉMON TCG", SwingConstants.CENTER);
         titulo.setFont(new Font("Segoe UI", Font.BOLD, 52));
         titulo.setForeground(Color.WHITE);
-        titulo.setBounds(0, 40, 900, 80);
+        titulo.setBounds(0, tela.height / 2 - 220, tela.width, 80);
 
         JLabel subtitulo = new JLabel("[" + VERSAO_BUILD + "]", SwingConstants.CENTER);
         subtitulo.setFont(new Font("Segoe UI", Font.ITALIC, 14));
         subtitulo.setForeground(new Color(210, 210, 230));
-        subtitulo.setBounds(0, 118, 900, 25);
+        subtitulo.setBounds(0, tela.height / 2 - 142, tela.width, 25);
+
+        int larguraBotao = 320;
+        int alturaBotao = 60;
+        int xBotao = (tela.width - larguraBotao) / 2;
 
         JButton btnSolo = criarBotaoMenuPrincipal("🎮 Jogar vs Bot");
-        btnSolo.setBounds(300, 330, 300, 60);
+        btnSolo.setBounds(xBotao, tela.height / 2 - 40, larguraBotao, alturaBotao);
         btnSolo.addActionListener(e -> {
             resultado[0] = true;
             menuDialog.dispose();
         });
 
         JButton btnPvp = criarBotaoMenuPrincipal("👥 PvP (2 Jogadores)");
-        btnPvp.setBounds(300, 410, 300, 60);
+        btnPvp.setBounds(xBotao, tela.height / 2 + 40, larguraBotao, alturaBotao);
         btnPvp.addActionListener(e -> {
             resultado[0] = false;
             menuDialog.dispose();
         });
 
         JButton btnSair = criarBotaoMenuPrincipal("🚪 Sair");
-        btnSair.setBounds(300, 490, 300, 60);
+        btnSair.setBounds(xBotao, tela.height / 2 + 120, larguraBotao, alturaBotao);
         btnSair.addActionListener(e -> System.exit(0));
 
         fundoPanel.add(titulo);
@@ -343,37 +421,66 @@ public class AppGUI {
 
     private void escolherTimeDialog(Jogador jogador, boolean[] disponivel) {
         while (true) {
-            java.util.List<String> opcoes = new java.util.ArrayList<>();
-            if (disponivel[0]) opcoes.add("💧 Água");
-            if (disponivel[1]) opcoes.add("🔥 Fogo");
-            if (disponivel[2]) opcoes.add("🌿 Planta");
-            opcoes.add("🌍 Montar Time Customizado (qualquer Pokémon Gen 1 a 6)");
+            final String[] escolha = { null };
+            Dimension tela = Toolkit.getDefaultToolkit().getScreenSize();
 
-            String escolha = (String) JOptionPane.showInputDialog(
-                    frame,
-                    jogador.getNome() + ", escolha seu time:",
-                    "Escolha de Time",
-                    JOptionPane.QUESTION_MESSAGE,
-                    null,
-                    opcoes.toArray(),
-                    opcoes.get(0)
-            );
+            JDialog dialogo = new JDialog((Frame) null, "Pokémon TCG", true);
+            dialogo.setSize(tela);
+            dialogo.setLocation(0, 0);
+            dialogo.setResizable(false);
+            dialogo.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
 
-            if (escolha == null) continue;
+            JPanel painel = criarPainelComFundo();
+            painel.setPreferredSize(tela);
 
-            if (escolha.contains("Água")) {
+            JLabel titulo = new JLabel(jogador.getNome() + ", escolha seu time:", SwingConstants.CENTER);
+            titulo.setFont(new Font("Segoe UI", Font.BOLD, 30));
+            titulo.setForeground(Color.WHITE);
+            titulo.setBounds(0, tela.height / 2 - 260, tela.width, 50);
+            painel.add(titulo);
+
+            int larguraBotao = 380;
+            int alturaBotao = 55;
+            int gap = 15;
+            int xBotao = (tela.width - larguraBotao) / 2;
+
+            java.util.List<String[]> opcoes = new java.util.ArrayList<>();
+            if (disponivel[0]) opcoes.add(new String[]{"💧 Água", "AGUA"});
+            if (disponivel[1]) opcoes.add(new String[]{"🔥 Fogo", "FOGO"});
+            if (disponivel[2]) opcoes.add(new String[]{"🌿 Planta", "PLANTA"});
+            opcoes.add(new String[]{"🌍 Montar Time Customizado (Gen 1 a 6)", "CUSTOM"});
+
+            int yAtual = tela.height / 2 - 180;
+            for (String[] opcao : opcoes) {
+                JButton botao = criarBotaoMenuPrincipal(opcao[0]);
+                botao.setBounds(xBotao, yAtual, larguraBotao, alturaBotao);
+                String codigo = opcao[1];
+                botao.addActionListener(e -> {
+                    escolha[0] = codigo;
+                    dialogo.dispose();
+                });
+                painel.add(botao);
+                yAtual += alturaBotao + gap;
+            }
+
+            dialogo.setContentPane(painel);
+            dialogo.setVisible(true);
+
+            if (escolha[0] == null) continue;
+
+            if (escolha[0].equals("AGUA")) {
                 App.adicionarTimeAgua(jogador);
                 disponivel[0] = false;
                 return;
-            } else if (escolha.contains("Fogo")) {
+            } else if (escolha[0].equals("FOGO")) {
                 App.adicionarTimeFogo(jogador);
                 disponivel[1] = false;
                 return;
-            } else if (escolha.contains("Planta")) {
+            } else if (escolha[0].equals("PLANTA")) {
                 App.adicionarTimePlanta(jogador);
                 disponivel[2] = false;
                 return;
-            } else if (escolha.contains("Customizado")) {
+            } else if (escolha[0].equals("CUSTOM")) {
                 boolean concluiu = abrirConstrutorDeTime(jogador);
                 if (concluiu) return;
             }
@@ -382,10 +489,27 @@ public class AppGUI {
 
     private boolean abrirConstrutorDeTime(Jogador jogador) {
         JDialog dialog = new JDialog((Frame) null, "Montar Time Customizado — " + jogador.getNome(), true);
-        dialog.setSize(650, 620);
+        dialog.setSize(650, 650);
         dialog.setLocationRelativeTo(frame);
         dialog.setLayout(new BorderLayout(8, 8));
         dialog.getContentPane().setBackground(COR_FUNDO);
+
+        // Cabeçalho com o ícone da Pokébola, dando aquele toque visual sem prejudicar a leitura da lista
+        JPanel cabecalhoPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 8));
+        cabecalhoPanel.setBackground(COR_BANNER);
+        JLabel iconePokebola = new JLabel();
+        if (imagemMenuPokebola != null) {
+            Image escalada = imagemMenuPokebola.getScaledInstance(36, 36, Image.SCALE_SMOOTH);
+            iconePokebola.setIcon(new ImageIcon(escalada));
+        }
+        JLabel tituloCabecalho = new JLabel("Montar Time Customizado — " + jogador.getNome());
+        tituloCabecalho.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        tituloCabecalho.setForeground(Color.WHITE);
+        cabecalhoPanel.add(iconePokebola);
+        cabecalhoPanel.add(tituloCabecalho);
+
+        JPanel topoPanel = new JPanel(new BorderLayout());
+        topoPanel.add(cabecalhoPanel, BorderLayout.NORTH);
 
         JPanel geracoesPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 8));
         geracoesPanel.setBackground(COR_FUNDO);
@@ -551,7 +675,9 @@ public class AppGUI {
                 JScrollPane.VERTICAL_SCROLLBAR_NEVER, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         geracoesScroll.setBorder(BorderFactory.createEmptyBorder());
         geracoesScroll.setPreferredSize(new Dimension(600, 50));
-        dialog.add(geracoesScroll, BorderLayout.NORTH);
+
+        topoPanel.add(geracoesScroll, BorderLayout.CENTER);
+        dialog.add(topoPanel, BorderLayout.NORTH);
         dialog.add(listaScroll, BorderLayout.CENTER);
         dialog.add(sulPanel, BorderLayout.SOUTH);
 
