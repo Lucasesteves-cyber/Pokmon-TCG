@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 import java.net.HttpURLConnection;
 import java.io.*;
 import java.awt.*;
+import java.awt.image.*;
 import java.util.List;
 
 public class AppGUI {
@@ -49,6 +50,9 @@ public class AppGUI {
 
     private final java.util.Map<Integer, ImageIcon> cacheSpritesPorNumero = new java.util.HashMap<>();
     private final java.util.Set<Integer> spritesCarregandoAgora = new java.util.HashSet<>();
+
+    private final java.util.Map<Integer, String> cacheTipoPorNumero = new java.util.HashMap<>();
+    private final java.util.Set<Integer> tiposCarregandoAgora = new java.util.HashSet<>();
 
     private static final java.util.Map<String, Integer> POKEDEX = new java.util.HashMap<>();
     static {
@@ -147,9 +151,126 @@ public class AppGUI {
         iniciarTurno();
     }
 
-    private Image imagemMenuPokebola;
-    private Image imagemMenuPikachu;
     private Image imagemMenuCharizard;
+    private Image imagemMenuBlastoise;
+    private Image imagemMenuVenusaur;
+
+    /**
+     * Desenha uma Pokébola vetorial (não uma imagem baixada), já ABERTA — a metade vermelha
+     * sobe, a metade branca desce, com um brilho suave saindo do meio. Como é desenhada na hora
+     * com formas geométricas, fica sempre nítida em qualquer tamanho de tela, sem pixelar.
+     */
+    private void desenharPokebolaAberta(Graphics2D g2, int centerX, int centerY, int tamanho) {
+        int raio = tamanho / 2;
+
+        Object antialiasAntigo = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        float raioMax = raio * 1.5f;
+        RadialGradientPaint brilhoFundo = new RadialGradientPaint(
+                new Point(centerX, centerY), raioMax,
+                new float[]{0f, 1f},
+                new Color[]{new Color(255, 250, 200, 90), new Color(255, 250, 200, 0)}
+        );
+        g2.setPaint(brilhoFundo);
+        g2.fillOval((int) (centerX - raioMax), (int) (centerY - raioMax), (int) (raioMax * 2), (int) (raioMax * 2));
+
+        // ---- METADE DE BAIXO: branca ----
+        GradientPaint branco = new GradientPaint(
+                centerX - raio, centerY, new Color(255, 255, 255),
+                centerX + raio, centerY + raio, new Color(215, 215, 220)
+        );
+        g2.setPaint(branco);
+        g2.fillArc(centerX - raio, centerY - raio, tamanho, tamanho, 180, 180);
+
+        // ---- METADE DE CIMA: vermelha brilhante ----
+        RadialGradientPaint vermelhoEsferico = new RadialGradientPaint(
+                new Point(centerX - (int) (raio * 0.35), centerY - (int) (raio * 0.55)), tamanho * 0.85f,
+                new float[]{0f, 0.55f, 1f},
+                new Color[]{new Color(255, 160, 160), new Color(225, 55, 55), new Color(160, 15, 15)}
+        );
+        g2.setPaint(vermelhoEsferico);
+        g2.fillArc(centerX - raio, centerY - raio, tamanho, tamanho, 0, 180);
+
+        // Reflexo de luz na tampa vermelha, dando o brilho "esférico" de bola de verdade
+        int reflexoLargura = (int) (tamanho * 0.24);
+        int reflexoAltura = (int) (tamanho * 0.14);
+        g2.setColor(new Color(255, 255, 255, 130));
+        g2.fillOval(centerX - raio + (int) (tamanho * 0.16), centerY - raio + (int) (tamanho * 0.14),
+                reflexoLargura, reflexoAltura);
+
+        // ---- Contorno externo da bola inteira ----
+        g2.setColor(Color.BLACK);
+        g2.setStroke(new BasicStroke(4f));
+        g2.drawOval(centerX - raio, centerY - raio, tamanho, tamanho);
+
+        // ---- Faixa preta no meio (equador da bola) ----
+        int alturaFaixa = Math.max(6, tamanho / 12);
+        g2.setColor(new Color(15, 15, 15));
+        g2.fillRect(centerX - raio, centerY - alturaFaixa / 2, tamanho, alturaFaixa);
+
+        // ---- Botão central ----
+        int botaoRaioExterno = Math.max(10, tamanho / 9);
+        g2.setColor(new Color(15, 15, 15));
+        g2.fillOval(centerX - botaoRaioExterno, centerY - botaoRaioExterno, botaoRaioExterno * 2, botaoRaioExterno * 2);
+        int botaoRaioMeio = (int) (botaoRaioExterno * 0.72);
+        g2.setColor(Color.WHITE);
+        g2.fillOval(centerX - botaoRaioMeio, centerY - botaoRaioMeio, botaoRaioMeio * 2, botaoRaioMeio * 2);
+        int botaoRaioInterno = (int) (botaoRaioExterno * 0.42);
+        g2.setColor(new Color(15, 15, 15));
+        g2.drawOval(centerX - botaoRaioMeio, centerY - botaoRaioMeio, botaoRaioMeio * 2, botaoRaioMeio * 2);
+        g2.setColor(new Color(230, 230, 235));
+        g2.fillOval(centerX - botaoRaioInterno, centerY - botaoRaioInterno, botaoRaioInterno * 2, botaoRaioInterno * 2);
+
+        if (antialiasAntigo != null) g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, antialiasAntigo);
+    }
+
+    /**
+     * Escreve um texto com um contorno escuro em volta — assim ele continua legível não importa
+     * o que estiver desenhado atrás (imagem de fundo, cor clara, etc), sem depender do fundo.
+     */
+    private void desenharTextoComContorno(Graphics2D g2, String texto, int centerX, int y, Font fonte, Color corTexto, Color corContorno) {
+        g2.setFont(fonte);
+        FontMetrics fm = g2.getFontMetrics();
+        int posX = centerX - fm.stringWidth(texto) / 2;
+
+        g2.setColor(corContorno);
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                if (dx != 0 || dy != 0) {
+                    g2.drawString(texto, posX + dx, y + dy);
+                }
+            }
+        }
+        g2.setColor(corTexto);
+        g2.drawString(texto, posX, y);
+    }
+
+    /**
+     * Desenha um Pokémon numa posição ao redor de um círculo (feito tipo roda de tipos elemental).
+     * anguloGraus: 0° = direita, 90° = embaixo, 180° = esquerda, 270° = em cima.
+     */
+    private void desenharRivalNoCirculo(Graphics2D g2, Image imagem, int centroX, int centroY, int raioCirculo, double anguloGraus, int tamanho) {
+        if (imagem == null) return;
+        double rad = Math.toRadians(anguloGraus);
+        int px = centroX + (int) (raioCirculo * Math.cos(rad));
+        int py = centroY + (int) (raioCirculo * Math.sin(rad));
+        g2.drawImage(imagem, px - tamanho / 2, py - tamanho / 2, tamanho, tamanho, null);
+    }
+
+    /**
+     * Aplica um desfoque (borrão) numa imagem — usado nas artes grandes de fundo (Charizard,
+     * Blastoise, Venusaur), pra ficarem só uma ambientação, sem competir com o texto/pokébola.
+     */
+    private BufferedImage aplicarDesfoque(BufferedImage origem, int raio) {
+        int tamanhoKernel = raio * 2 + 1;
+        float peso = 1.0f / (tamanhoKernel * tamanhoKernel);
+        float[] dados = new float[tamanhoKernel * tamanhoKernel];
+        java.util.Arrays.fill(dados, peso);
+        Kernel kernel = new Kernel(tamanhoKernel, tamanhoKernel, dados);
+        ConvolveOp op = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, null);
+        return op.filter(origem, null);
+    }
 
     /**
      * Cria um painel com o visual padrão das telas de abertura: fundo em gradiente escuro
@@ -166,12 +287,8 @@ public class AppGUI {
                 g2.setPaint(gradiente);
                 g2.fillRect(0, 0, getWidth(), getHeight());
 
-                if (imagemMenuPokebola != null) {
-                    int tamanho = Math.min(getWidth(), getHeight()) / 2;
-                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.16f));
-                    g2.drawImage(imagemMenuPokebola, (getWidth() - tamanho) / 2, 30, tamanho, tamanho, this);
-                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
-                }
+                int tamanhoBola = (int) (getHeight() * 0.28);
+                desenharPokebolaAberta(g2, getWidth() / 2, tamanhoBola / 2 + 40, tamanhoBola);
             }
         };
         painel.setLayout(null);
@@ -246,57 +363,56 @@ public class AppGUI {
                 g2.setPaint(gradiente);
                 g2.fillRect(0, 0, getWidth(), getHeight());
 
-                if (imagemMenuPokebola != null) {
-                    int tamanho = Math.min(getWidth(), getHeight()) / 2;
-                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.18f));
-                    g2.drawImage(imagemMenuPokebola, (getWidth() - tamanho) / 2, 40, tamanho, tamanho, this);
-                    g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
-                }
-                if (imagemMenuPikachu != null) {
-                    g2.drawImage(imagemMenuPikachu, -40, getHeight() - 330, 320, 320, this);
-                }
-                if (imagemMenuCharizard != null) {
-                    g2.drawImage(imagemMenuCharizard, getWidth() - 300, getHeight() - 330, 320, 320, this);
-                }
+                // Os 3 "rivais de elemento" borrados ao fundo, todos do mesmo tamanho, arrumados
+                // em círculo (tipo a roda de tipos do Pokémon GO) — mais espaçados entre si, mas
+                // nas mesmas posições/direções de antes
+                int centroCirculoX = getWidth() / 2;
+                int centroCirculoY = (int) (getHeight() * 0.55);
+                int raioCirculo = (int) (getHeight() * 0.42);
+                int tamanhoRival = (int) (getHeight() * 0.48);
+
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.30f));
+                desenharRivalNoCirculo(g2, imagemMenuCharizard, centroCirculoX, centroCirculoY, raioCirculo, 90, tamanhoRival);
+                desenharRivalNoCirculo(g2, imagemMenuBlastoise, centroCirculoX, centroCirculoY, raioCirculo, 210, tamanhoRival);
+                desenharRivalNoCirculo(g2, imagemMenuVenusaur, centroCirculoX, centroCirculoY, raioCirculo, 330, tamanhoRival);
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
+
+                // Pokébola fechada e o título logo abaixo dela — sempre desenhados por cima,
+                // então nunca ficam ilegíveis por causa do que estiver atrás
+                int centroX = getWidth() / 2;
+                int tamanhoBola = (int) (getHeight() * 0.24);
+                int centroYBola = (int) (getHeight() * 0.20);
+                desenharPokebolaAberta(g2, centroX, centroYBola, tamanhoBola);
+
+                desenharTextoComContorno(g2, "POKÉMON TCG", centroX, centroYBola + tamanhoBola / 2 + 55,
+                        new Font("Segoe UI", Font.BOLD, 50), Color.WHITE, new Color(20, 15, 40));
             }
         };
         fundoPanel.setLayout(null);
         fundoPanel.setPreferredSize(tela);
-
-        JLabel titulo = new JLabel("POKÉMON TCG", SwingConstants.CENTER);
-        titulo.setFont(new Font("Segoe UI", Font.BOLD, 52));
-        titulo.setForeground(Color.WHITE);
-        titulo.setBounds(0, tela.height / 2 - 220, tela.width, 80);
-
-        JLabel subtitulo = new JLabel("[" + VERSAO_BUILD + "]", SwingConstants.CENTER);
-        subtitulo.setFont(new Font("Segoe UI", Font.ITALIC, 14));
-        subtitulo.setForeground(new Color(210, 210, 230));
-        subtitulo.setBounds(0, tela.height / 2 - 142, tela.width, 25);
 
         int larguraBotao = 320;
         int alturaBotao = 60;
         int xBotao = (tela.width - larguraBotao) / 2;
 
         JButton btnSolo = criarBotaoMenuPrincipal("🎮 Jogar vs Bot");
-        btnSolo.setBounds(xBotao, tela.height / 2 - 40, larguraBotao, alturaBotao);
+        btnSolo.setBounds(xBotao, tela.height / 2 + 40, larguraBotao, alturaBotao);
         btnSolo.addActionListener(e -> {
             resultado[0] = true;
             menuDialog.dispose();
         });
 
         JButton btnPvp = criarBotaoMenuPrincipal("👥 PvP (2 Jogadores)");
-        btnPvp.setBounds(xBotao, tela.height / 2 + 40, larguraBotao, alturaBotao);
+        btnPvp.setBounds(xBotao, tela.height / 2 + 120, larguraBotao, alturaBotao);
         btnPvp.addActionListener(e -> {
             resultado[0] = false;
             menuDialog.dispose();
         });
 
         JButton btnSair = criarBotaoMenuPrincipal("🚪 Sair");
-        btnSair.setBounds(xBotao, tela.height / 2 + 120, larguraBotao, alturaBotao);
+        btnSair.setBounds(xBotao, tela.height / 2 + 200, larguraBotao, alturaBotao);
         btnSair.addActionListener(e -> System.exit(0));
 
-        fundoPanel.add(titulo);
-        fundoPanel.add(subtitulo);
         fundoPanel.add(btnSolo);
         fundoPanel.add(btnPvp);
         fundoPanel.add(btnSair);
@@ -322,20 +438,24 @@ public class AppGUI {
 
     private void carregarImagensMenu(JPanel painelParaRepintar) {
         new Thread(() -> {
-            Image pokebola = baixarImagem("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png");
-            Image pikachu = baixarImagem("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png");
-            Image charizard = baixarImagem("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png");
+            BufferedImage charizard = baixarImagemBuffered("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png");
+            BufferedImage blastoise = baixarImagemBuffered("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/9.png");
+            BufferedImage venusaur = baixarImagemBuffered("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/3.png");
+
+            Image charizardDesfocado = charizard != null ? aplicarDesfoque(charizard, 8) : null;
+            Image blastoiseDesfocado = blastoise != null ? aplicarDesfoque(blastoise, 8) : null;
+            Image venusaurDesfocado = venusaur != null ? aplicarDesfoque(venusaur, 8) : null;
 
             SwingUtilities.invokeLater(() -> {
-                imagemMenuPokebola = pokebola;
-                imagemMenuPikachu = pikachu;
-                imagemMenuCharizard = charizard;
+                imagemMenuCharizard = charizardDesfocado;
+                imagemMenuBlastoise = blastoiseDesfocado;
+                imagemMenuVenusaur = venusaurDesfocado;
                 painelParaRepintar.repaint();
             });
         }).start();
     }
 
-    private Image baixarImagem(String url) {
+    private BufferedImage baixarImagemBuffered(String url) {
         try {
             return ImageIO.read(java.net.URI.create(url).toURL());
         } catch (Exception e) {
@@ -442,10 +562,10 @@ public class AppGUI {
             int xBotao = (tela.width - larguraBotao) / 2;
 
             java.util.List<String[]> opcoes = new java.util.ArrayList<>();
-            if (disponivel[0]) opcoes.add(new String[]{"💧 Água", "AGUA"});
-            if (disponivel[1]) opcoes.add(new String[]{"🔥 Fogo", "FOGO"});
-            if (disponivel[2]) opcoes.add(new String[]{"🌿 Planta", "PLANTA"});
-            opcoes.add(new String[]{"🌍 Montar Time Customizado (Gen 1 a 6)", "CUSTOM"});
+            if (disponivel[0]) opcoes.add(new String[]{"\uD83D\uDCA7 Água", "AGUA"});
+            if (disponivel[1]) opcoes.add(new String[]{"\uD83D\uDD25 Fogo", "FOGO"});
+            if (disponivel[2]) opcoes.add(new String[]{"\uD83C\uDF3F Planta", "PLANTA"});
+            opcoes.add(new String[]{"\uD83C\uDF0D Montar Time Customizado (Gen 1 a 6)", "CUSTOM"});
 
             int yAtual = tela.height / 2 - 180;
             for (String[] opcao : opcoes) {
@@ -491,14 +611,18 @@ public class AppGUI {
         dialog.setLayout(new BorderLayout(8, 8));
         dialog.getContentPane().setBackground(COR_FUNDO);
 
-        // Cabeçalho com o ícone da Pokébola, dando aquele toque visual sem prejudicar a leitura da lista
+        // Cabeçalho com um mini-desenho da Pokébola, dando aquele toque visual sem prejudicar a leitura da lista
         JPanel cabecalhoPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 8));
         cabecalhoPanel.setBackground(COR_BANNER);
-        JLabel iconePokebola = new JLabel();
-        if (imagemMenuPokebola != null) {
-            Image escalada = imagemMenuPokebola.getScaledInstance(36, 36, Image.SCALE_SMOOTH);
-            iconePokebola.setIcon(new ImageIcon(escalada));
-        }
+        JPanel iconePokebola = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                desenharPokebolaAberta((Graphics2D) g, 20, 20, 32);
+            }
+        };
+        iconePokebola.setOpaque(false);
+        iconePokebola.setPreferredSize(new Dimension(40, 40));
         JLabel tituloCabecalho = new JLabel("Montar Time Customizado — " + jogador.getNome());
         tituloCabecalho.setFont(new Font("Segoe UI", Font.BOLD, 16));
         tituloCabecalho.setForeground(Color.WHITE);
@@ -543,7 +667,9 @@ public class AppGUI {
                                                             boolean isSelected, boolean cellHasFocus) {
                 JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 int numeroDex = offsetAtual[0] + index + 1;
-                label.setText("#" + numeroDex + "  " + value);
+                String tipo = obterTipoParaLista(numeroDex, listaPokemon);
+                String prefixoTipo = tipo != null ? emojiDoTipo(tipo) + " " : "";
+                label.setText(prefixoTipo + "#" + numeroDex + "  " + value);
                 label.setIcon(obterSpriteParaLista(numeroDex, listaPokemon));
                 label.setIconTextGap(10);
                 return label;
@@ -791,25 +917,25 @@ public class AppGUI {
 
     private String emojiDoTipo(String tipo) {
         switch (tipo) {
-            case "Água": return "💧";
-            case "Fogo": return "🔥";
-            case "Planta": return "🌿";
-            case "Elétrico": return "⚡";
-            case "Psíquico": return "🔮";
-            case "Gelo": return "❄️";
-            case "Dragão": return "🐉";
-            case "Sombrio": return "🌑";
-            case "Fada": return "✨";
-            case "Lutador": return "🥊";
-            case "Voador": return "🕊️";
-            case "Veneno": return "☠️";
-            case "Terra": return "🌍";
-            case "Pedra": return "🪨";
-            case "Inseto": return "🐛";
-            case "Fantasma": return "👻";
-            case "Aço": return "⚙️";
-            case "Normal": return "⭐";
-            default: return "❔";
+            case "Água": return "\uD83D\uDCA7";
+            case "Fogo": return "\uD83D\uDD25";
+            case "Planta": return "\uD83C\uDF3F";
+            case "Elétrico": return "\u26A1";
+            case "Psíquico": return "\uD83D\uDD2E";
+            case "Gelo": return "\u2744\uFE0F";
+            case "Dragão": return "\uD83D\uDC09";
+            case "Sombrio": return "\uD83C\uDF11";
+            case "Fada": return "\u2728";
+            case "Lutador": return "\uD83E\uDD4A";
+            case "Voador": return "\uD83D\uDD4A\uFE0F";
+            case "Veneno": return "\u2620\uFE0F";
+            case "Terra": return "\uD83C\uDF0D";
+            case "Pedra": return "\uD83E\uDEA8";
+            case "Inseto": return "\uD83D\uDC1B";
+            case "Fantasma": return "\uD83D\uDC7B";
+            case "Aço": return "\u2699\uFE0F";
+            case "Normal": return "\u2B50";
+            default: return "\u2754";
         }
     }
 
@@ -1037,6 +1163,42 @@ public class AppGUI {
                 SwingUtilities.invokeLater(() -> {
                     cacheSpritesPorNumero.put(numeroDex, iconeFinal);
                     spritesCarregandoAgora.remove(numeroDex);
+                    lista.repaint();
+                });
+            }).start();
+        }
+
+        return null;
+    }
+
+    /**
+     * Busca (em segundo plano, com cache) o tipo elemental de um Pokémon pra mostrar o símbolo
+     * do elemento do lado do nome na lista, antes mesmo de você adicionar ele ao time.
+     */
+    private String obterTipoParaLista(int numeroDex, JList<String> lista) {
+        if (cacheTipoPorNumero.containsKey(numeroDex)) {
+            return cacheTipoPorNumero.get(numeroDex);
+        }
+
+        if (!tiposCarregandoAgora.contains(numeroDex)) {
+            tiposCarregandoAgora.add(numeroDex);
+
+            new Thread(() -> {
+                String tipo = null;
+                try {
+                    String json = fetchUrl("https://pokeapi.co/api/v2/pokemon/" + numeroDex);
+                    Matcher m = Pattern.compile("\"type\":\\{\"name\":\"([a-z]+)\"").matcher(json);
+                    if (m.find()) {
+                        tipo = traduzirTipo(m.group(1));
+                    }
+                } catch (Exception e) {
+                    tipo = null;
+                }
+
+                String tipoFinal = tipo;
+                SwingUtilities.invokeLater(() -> {
+                    cacheTipoPorNumero.put(numeroDex, tipoFinal);
+                    tiposCarregandoAgora.remove(numeroDex);
                     lista.repaint();
                 });
             }).start();
