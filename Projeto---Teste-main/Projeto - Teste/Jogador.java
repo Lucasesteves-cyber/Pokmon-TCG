@@ -521,6 +521,7 @@ public class Jogador {
 
     public String getNome() { return nome; }
     public List<Carta> getMao() { return mao; }
+    public List<Carta> getBaralho() { return baralho; }
     public CartaPokemon getPokemonAtivo() { return pokemonAtivo; }
     public List<CartaPokemon> getBanco() { return banco; }
     public List<CartaPokemon> getZonaMorta() { return zonaMorta; }
