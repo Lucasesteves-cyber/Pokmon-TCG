@@ -108,28 +108,88 @@ public class AppGUI {
         SwingUtilities.invokeLater(() -> new AppGUI().iniciar());
     }
 
+    // Guardado pra permitir "Jogar Novamente" sem repetir a escolha de nome/time
+    private String nomeJogador1Salvo;
+    private String nomeJogador2Salvo;
+    private List<CartaPokemon> composicaoJogador1;
+    private List<CartaPokemon> composicaoJogador2;
+    private boolean modoSoloSalvo;
+
     private void iniciar() {
 
         boolean modoSolo = escolherModoDialog();
+        modoSoloSalvo = modoSolo;
 
         boolean[] timesDisponiveis = { true, true, true };
 
         String nome1 = pedirNomeEstilizado("Digite o seu nome de Treinador:", "Treinador 1");
-        jogador1 = new Jogador(nome1);
-        escolherTimeDialog(jogador1, timesDisponiveis);
+        Jogador jog1Temp = new Jogador(nome1);
+        escolherTimeDialog(jog1Temp, timesDisponiveis);
+        List<CartaPokemon> composicao1 = capturarComposicao(jog1Temp);
+
+        Jogador jog2Temp;
+        List<CartaPokemon> composicao2;
 
         if (modoSolo) {
-
-            jogador2 = new Jogador("Bot 🤖");
-            jogadorBot = jogador2;
-            construirTimeAleatorioBotComLoading(jogador2);
+            jog2Temp = new Jogador("Bot 🤖");
+            construirTimeAleatorioBotComLoading(jog2Temp);
+            composicao2 = capturarComposicao(jog2Temp);
         } else {
-
-            jogadorBot = null;
             String nome2 = pedirNomeEstilizado("Digite o nome do Treinador 2:", "Treinador 2");
-            jogador2 = new Jogador(nome2);
-            escolherTimeDialog(jogador2, timesDisponiveis);
+            jog2Temp = new Jogador(nome2);
+            escolherTimeDialog(jog2Temp, timesDisponiveis);
+            composicao2 = capturarComposicao(jog2Temp);
         }
+
+        nomeJogador1Salvo = jog1Temp.getNome();
+        nomeJogador2Salvo = jog2Temp.getNome();
+        composicaoJogador1 = composicao1;
+        composicaoJogador2 = composicao2;
+
+        iniciarPartida(nomeJogador1Salvo, composicao1, nomeJogador2Salvo, composicao2, modoSolo);
+    }
+
+    /**
+     * Tira uma "foto" dos Pokémon que estão no baralho de um jogador logo depois da escolha de
+     * time (antes das cartas de Treinador entrarem e antes de embaralhar) — isso vira a "receita"
+     * do time, usada depois pra reconstruir o mesmo time do zero quando o jogador clicar em
+     * "Jogar Novamente com a Mesma Equipe".
+     */
+    private List<CartaPokemon> capturarComposicao(Jogador jogador) {
+        List<CartaPokemon> composicao = new java.util.ArrayList<>();
+        for (Carta carta : jogador.getBaralho()) {
+            if (carta instanceof CartaPokemon) {
+                CartaPokemon p = (CartaPokemon) carta;
+                CartaPokemon copia = new CartaPokemon(p.getNome(), p.getTipoElemento(), p.getHpMaximo(), p.getDanoAtaque(), p.getEvoluiDe());
+                copia.setNumeroDex(p.getNumeroDex());
+                composicao.add(copia);
+            }
+        }
+        return composicao;
+    }
+
+    /**
+     * Monta um Jogador "do zero" (mão vazia, campo vazio, baralho novinho) a partir de uma
+     * receita de composição já pronta — usado tanto na primeira partida quanto nos replays.
+     */
+    private Jogador construirJogadorFresco(String nome, List<CartaPokemon> composicao) {
+        Jogador jogador = new Jogador(nome);
+        for (CartaPokemon modelo : composicao) {
+            CartaPokemon copia = new CartaPokemon(modelo.getNome(), modelo.getTipoElemento(), modelo.getHpMaximo(), modelo.getDanoAtaque(), modelo.getEvoluiDe());
+            copia.setNumeroDex(modelo.getNumeroDex());
+            jogador.adicionarAoBaralho(copia);
+        }
+        return jogador;
+    }
+
+    /**
+     * Monta e começa (ou recomeça) uma partida a partir de duas composições de time já prontas.
+     * Reaproveita a mesma janela se ela já existir (evita abrir várias janelas em replays).
+     */
+    private void iniciarPartida(String nome1, List<CartaPokemon> composicao1, String nome2, List<CartaPokemon> composicao2, boolean modoSolo) {
+        jogador1 = construirJogadorFresco(nome1, composicao1);
+        jogador2 = construirJogadorFresco(nome2, composicao2);
+        jogadorBot = modoSolo ? jogador2 : null;
 
         App.adicionarCartasTreinador(jogador1);
         App.adicionarCartasTreinador(jogador2);
@@ -141,14 +201,61 @@ public class AppGUI {
 
         jogadorAtual = jogador1;
         adversario = jogador2;
+        jogador1PrimeiroTurno = true;
+        jogador2PrimeiroTurno = true;
+        numeroTurno = 1;
+        jogoAtivo = true;
 
-        montarJanela();
-
-        redirecionarConsoleParaLog();
+        if (frame == null) {
+            montarJanela();
+            redirecionarConsoleParaLog();
+        } else {
+            logArea.setText("");
+        }
 
         frame.setVisible(true);
 
         iniciarTurno();
+    }
+
+    /**
+     * "Jogar Novamente" opção 1: recomeça do zero, mas com exatamente os mesmos Pokémon de antes
+     * (inclusive o time do Bot, se for modo Solo).
+     */
+    private void reiniciarComMesmaEquipe() {
+        iniciarPartida(nomeJogador1Salvo, composicaoJogador1, nomeJogador2Salvo, composicaoJogador2, modoSoloSalvo);
+    }
+
+    /**
+     * "Jogar Novamente" opção 2: mantém os nomes e o modo (Solo/PvP), mas deixa escolher o time
+     * de novo — no modo Solo, o Bot também sorteia um time novo.
+     */
+    private void reiniciarTrocandoEquipe() {
+        boolean[] timesDisponiveis = { true, true, true };
+
+        Jogador jog1Temp = new Jogador(nomeJogador1Salvo);
+        escolherTimeDialog(jog1Temp, timesDisponiveis);
+        List<CartaPokemon> composicao1 = capturarComposicao(jog1Temp);
+
+        Jogador jog2Temp;
+        List<CartaPokemon> composicao2;
+
+        if (modoSoloSalvo) {
+            jog2Temp = new Jogador("Bot 🤖");
+            construirTimeAleatorioBotComLoading(jog2Temp);
+            composicao2 = capturarComposicao(jog2Temp);
+        } else {
+            jog2Temp = new Jogador(nomeJogador2Salvo);
+            escolherTimeDialog(jog2Temp, timesDisponiveis);
+            composicao2 = capturarComposicao(jog2Temp);
+        }
+
+        nomeJogador1Salvo = jog1Temp.getNome();
+        nomeJogador2Salvo = jog2Temp.getNome();
+        composicaoJogador1 = composicao1;
+        composicaoJogador2 = composicao2;
+
+        iniciarPartida(nomeJogador1Salvo, composicao1, nomeJogador2Salvo, composicao2, modoSoloSalvo);
     }
 
     private Image imagemMenuCharizard;
@@ -1351,53 +1458,70 @@ public class AppGUI {
     }
 
     private void mostrarTelaFimDeJogo(Jogador vencedor, Jogador perdedor, String motivo) {
+        Dimension tela = Toolkit.getDefaultToolkit().getScreenSize();
+
         JDialog telaFim = new JDialog(frame, "Fim de Jogo", true);
-        telaFim.setSize(480, 380);
-        telaFim.setLocationRelativeTo(frame);
-        telaFim.setLayout(new BorderLayout());
+        telaFim.setSize(tela);
+        telaFim.setLocation(0, 0);
+        telaFim.setResizable(false);
         telaFim.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
 
-        JPanel banner = new JPanel(new GridLayout(2, 1));
-        banner.setBackground(new Color(255, 193, 7));
-        banner.setBorder(BorderFactory.createEmptyBorder(30, 10, 20, 10));
+        JPanel painel = criarPainelComFundo();
+        painel.setPreferredSize(tela);
+
+        int centroX = tela.width / 2;
 
         JLabel trofeu = new JLabel("🏆", SwingConstants.CENTER);
-        trofeu.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 64));
+        trofeu.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 90));
+        trofeu.setBounds(0, (int) (tela.height * 0.10), tela.width, 110);
 
-        JLabel tituloVencedor = new JLabel(vencedor.getNome() + " VENCEU!", SwingConstants.CENTER);
-        tituloVencedor.setFont(new Font("Segoe UI", Font.BOLD, 26));
-        tituloVencedor.setForeground(COR_BANNER);
-
-        banner.add(trofeu);
-        banner.add(tituloVencedor);
-
-        JPanel corpo = new JPanel();
-        corpo.setLayout(new BoxLayout(corpo, BoxLayout.Y_AXIS));
-        corpo.setBackground(COR_FUNDO);
-        corpo.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        JLabel tituloVencedor = new JLabel(vencedor.getNome().toUpperCase() + " VENCEU!", SwingConstants.CENTER);
+        tituloVencedor.setFont(new Font("Segoe UI", Font.BOLD, 44));
+        tituloVencedor.setForeground(new Color(255, 215, 0));
+        tituloVencedor.setBounds(0, (int) (tela.height * 0.24), tela.width, 60);
 
         JLabel motivoLabel = new JLabel("<html><div style='text-align:center;'>💀 " + perdedor.getNome()
                 + " perdeu a partida.<br>" + motivo + "</div></html>", SwingConstants.CENTER);
-        motivoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        motivoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        motivoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        motivoLabel.setForeground(Color.WHITE);
+        motivoLabel.setBounds(0, (int) (tela.height * 0.33), tela.width, 60);
 
         JLabel turnoFinalLabel = new JLabel("Partida encerrada no Turno " + numeroTurno + ".", SwingConstants.CENTER);
-        turnoFinalLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
-        turnoFinalLabel.setForeground(Color.GRAY);
-        turnoFinalLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        turnoFinalLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
+        turnoFinalLabel.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+        turnoFinalLabel.setForeground(new Color(210, 210, 230));
+        turnoFinalLabel.setBounds(0, (int) (tela.height * 0.40), tela.width, 25);
+
+        int larguraBotao = 380;
+        int alturaBotao = 58;
+        int xBotao = centroX - larguraBotao / 2;
+
+        JButton btnMesmaEquipe = criarBotaoMenuPrincipal("🔄 Jogar Novamente (Mesma Equipe)");
+        btnMesmaEquipe.setBounds(xBotao, (int) (tela.height * 0.50), larguraBotao, alturaBotao);
+        btnMesmaEquipe.addActionListener(e -> {
+            telaFim.dispose();
+            reiniciarComMesmaEquipe();
+        });
+
+        JButton btnTrocarEquipe = criarBotaoMenuPrincipal("🔁 Jogar Novamente (Trocar Time)");
+        btnTrocarEquipe.setBounds(xBotao, (int) (tela.height * 0.50) + alturaBotao + 16, larguraBotao, alturaBotao);
+        btnTrocarEquipe.addActionListener(e -> {
+            telaFim.dispose();
+            reiniciarTrocandoEquipe();
+        });
 
         JButton btnFechar = criarBotaoAcao("🚪 Fechar o Jogo", new Color(66, 66, 66));
-        btnFechar.setAlignmentX(Component.CENTER_ALIGNMENT);
+        btnFechar.setBounds(xBotao, (int) (tela.height * 0.50) + (alturaBotao + 16) * 2, larguraBotao, alturaBotao);
         btnFechar.addActionListener(e -> System.exit(0));
 
-        corpo.add(motivoLabel);
-        corpo.add(turnoFinalLabel);
-        corpo.add(btnFechar);
+        painel.add(trofeu);
+        painel.add(tituloVencedor);
+        painel.add(motivoLabel);
+        painel.add(turnoFinalLabel);
+        painel.add(btnMesmaEquipe);
+        painel.add(btnTrocarEquipe);
+        painel.add(btnFechar);
 
-        telaFim.add(banner, BorderLayout.NORTH);
-        telaFim.add(corpo, BorderLayout.CENTER);
-
+        telaFim.setContentPane(painel);
         telaFim.setVisible(true);
     }
 
