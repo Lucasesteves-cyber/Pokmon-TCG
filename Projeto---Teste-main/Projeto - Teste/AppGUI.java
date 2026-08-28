@@ -108,7 +108,6 @@ public class AppGUI {
         SwingUtilities.invokeLater(() -> new AppGUI().iniciar());
     }
 
-    // Guardado pra permitir "Jogar Novamente" sem repetir a escolha de nome/time
     private String nomeJogador1Salvo;
     private String nomeJogador2Salvo;
     private List<CartaPokemon> composicaoJogador1;
@@ -149,12 +148,6 @@ public class AppGUI {
         iniciarPartida(nomeJogador1Salvo, composicao1, nomeJogador2Salvo, composicao2, modoSolo);
     }
 
-    /**
-     * Tira uma "foto" dos Pokémon que estão no baralho de um jogador logo depois da escolha de
-     * time (antes das cartas de Treinador entrarem e antes de embaralhar) — isso vira a "receita"
-     * do time, usada depois pra reconstruir o mesmo time do zero quando o jogador clicar em
-     * "Jogar Novamente com a Mesma Equipe".
-     */
     private List<CartaPokemon> capturarComposicao(Jogador jogador) {
         List<CartaPokemon> composicao = new java.util.ArrayList<>();
         for (Carta carta : jogador.getBaralho()) {
@@ -168,10 +161,6 @@ public class AppGUI {
         return composicao;
     }
 
-    /**
-     * Monta um Jogador "do zero" (mão vazia, campo vazio, baralho novinho) a partir de uma
-     * receita de composição já pronta — usado tanto na primeira partida quanto nos replays.
-     */
     private Jogador construirJogadorFresco(String nome, List<CartaPokemon> composicao) {
         Jogador jogador = new Jogador(nome);
         for (CartaPokemon modelo : composicao) {
@@ -182,10 +171,6 @@ public class AppGUI {
         return jogador;
     }
 
-    /**
-     * Monta e começa (ou recomeça) uma partida a partir de duas composições de time já prontas.
-     * Reaproveita a mesma janela se ela já existir (evita abrir várias janelas em replays).
-     */
     private void iniciarPartida(String nome1, List<CartaPokemon> composicao1, String nome2, List<CartaPokemon> composicao2, boolean modoSolo) {
         jogador1 = construirJogadorFresco(nome1, composicao1);
         jogador2 = construirJogadorFresco(nome2, composicao2);
@@ -218,18 +203,10 @@ public class AppGUI {
         iniciarTurno();
     }
 
-    /**
-     * "Jogar Novamente" opção 1: recomeça do zero, mas com exatamente os mesmos Pokémon de antes
-     * (inclusive o time do Bot, se for modo Solo).
-     */
     private void reiniciarComMesmaEquipe() {
         iniciarPartida(nomeJogador1Salvo, composicaoJogador1, nomeJogador2Salvo, composicaoJogador2, modoSoloSalvo);
     }
 
-    /**
-     * "Jogar Novamente" opção 2: mantém os nomes e o modo (Solo/PvP), mas deixa escolher o time
-     * de novo — no modo Solo, o Bot também sorteia um time novo.
-     */
     private void reiniciarTrocandoEquipe() {
         boolean[] timesDisponiveis = { true, true, true };
 
@@ -262,11 +239,6 @@ public class AppGUI {
     private Image imagemMenuBlastoise;
     private Image imagemMenuVenusaur;
 
-    /**
-     * Desenha uma Pokébola vetorial (não uma imagem baixada), já ABERTA — a metade vermelha
-     * sobe, a metade branca desce, com um brilho suave saindo do meio. Como é desenhada na hora
-     * com formas geométricas, fica sempre nítida em qualquer tamanho de tela, sem pixelar.
-     */
     private void desenharPokebolaAberta(Graphics2D g2, int centerX, int centerY, int tamanho) {
         int raio = tamanho / 2;
 
@@ -282,7 +254,6 @@ public class AppGUI {
         g2.setPaint(brilhoFundo);
         g2.fillOval((int) (centerX - raioMax), (int) (centerY - raioMax), (int) (raioMax * 2), (int) (raioMax * 2));
 
-        // ---- METADE DE BAIXO: branca ----
         GradientPaint branco = new GradientPaint(
                 centerX - raio, centerY, new Color(255, 255, 255),
                 centerX + raio, centerY + raio, new Color(215, 215, 220)
@@ -290,7 +261,6 @@ public class AppGUI {
         g2.setPaint(branco);
         g2.fillArc(centerX - raio, centerY - raio, tamanho, tamanho, 180, 180);
 
-        // ---- METADE DE CIMA: vermelha brilhante ----
         RadialGradientPaint vermelhoEsferico = new RadialGradientPaint(
                 new Point(centerX - (int) (raio * 0.35), centerY - (int) (raio * 0.55)), tamanho * 0.85f,
                 new float[]{0f, 0.55f, 1f},
@@ -299,24 +269,20 @@ public class AppGUI {
         g2.setPaint(vermelhoEsferico);
         g2.fillArc(centerX - raio, centerY - raio, tamanho, tamanho, 0, 180);
 
-        // Reflexo de luz na tampa vermelha, dando o brilho "esférico" de bola de verdade
         int reflexoLargura = (int) (tamanho * 0.24);
         int reflexoAltura = (int) (tamanho * 0.14);
         g2.setColor(new Color(255, 255, 255, 130));
         g2.fillOval(centerX - raio + (int) (tamanho * 0.16), centerY - raio + (int) (tamanho * 0.14),
                 reflexoLargura, reflexoAltura);
 
-        // ---- Contorno externo da bola inteira ----
         g2.setColor(Color.BLACK);
         g2.setStroke(new BasicStroke(4f));
         g2.drawOval(centerX - raio, centerY - raio, tamanho, tamanho);
 
-        // ---- Faixa preta no meio (equador da bola) ----
         int alturaFaixa = Math.max(6, tamanho / 12);
         g2.setColor(new Color(15, 15, 15));
         g2.fillRect(centerX - raio, centerY - alturaFaixa / 2, tamanho, alturaFaixa);
 
-        // ---- Botão central ----
         int botaoRaioExterno = Math.max(10, tamanho / 9);
         g2.setColor(new Color(15, 15, 15));
         g2.fillOval(centerX - botaoRaioExterno, centerY - botaoRaioExterno, botaoRaioExterno * 2, botaoRaioExterno * 2);
@@ -332,10 +298,6 @@ public class AppGUI {
         if (antialiasAntigo != null) g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, antialiasAntigo);
     }
 
-    /**
-     * Escreve um texto com um contorno escuro em volta — assim ele continua legível não importa
-     * o que estiver desenhado atrás (imagem de fundo, cor clara, etc), sem depender do fundo.
-     */
     private void desenharTextoComContorno(Graphics2D g2, String texto, int centerX, int y, Font fonte, Color corTexto, Color corContorno) {
         g2.setFont(fonte);
         FontMetrics fm = g2.getFontMetrics();
@@ -353,10 +315,6 @@ public class AppGUI {
         g2.drawString(texto, posX, y);
     }
 
-    /**
-     * Desenha um Pokémon numa posição ao redor de um círculo (feito tipo roda de tipos elemental).
-     * anguloGraus: 0° = direita, 90° = embaixo, 180° = esquerda, 270° = em cima.
-     */
     private void desenharRivalNoCirculo(Graphics2D g2, Image imagem, int centroX, int centroY, int raioCirculo, double anguloGraus, int tamanho) {
         if (imagem == null) return;
         double rad = Math.toRadians(anguloGraus);
@@ -365,10 +323,6 @@ public class AppGUI {
         g2.drawImage(imagem, px - tamanho / 2, py - tamanho / 2, tamanho, tamanho, null);
     }
 
-    /**
-     * Aplica um desfoque (borrão) numa imagem — usado nas artes grandes de fundo (Charizard,
-     * Blastoise, Venusaur), pra ficarem só uma ambientação, sem competir com o texto/pokébola.
-     */
     private BufferedImage aplicarDesfoque(BufferedImage origem, int raio) {
         int tamanhoKernel = raio * 2 + 1;
         float peso = 1.0f / (tamanhoKernel * tamanhoKernel);
@@ -379,10 +333,6 @@ public class AppGUI {
         return op.filter(origem, null);
     }
 
-    /**
-     * Cria um painel com o visual padrão das telas de abertura: fundo em gradiente escuro
-     * com a Pokébola translúcida atrás. Reaproveitado em todas as telas antes do campo de batalha.
-     */
     private JPanel criarPainelComFundo() {
         JPanel painel = new JPanel() {
             @Override
@@ -403,10 +353,6 @@ public class AppGUI {
         return painel;
     }
 
-    /**
-     * Tela estilizada (mesmo visual das outras) pra pedir o nome do treinador,
-     * com campo de texto centralizado ao invés do JOptionPane padrão.
-     */
     private String pedirNomeEstilizado(String pergunta, String valorPadrao) {
         final String[] resultado = { valorPadrao };
         Dimension tela = Toolkit.getDefaultToolkit().getScreenSize();
@@ -470,9 +416,6 @@ public class AppGUI {
                 g2.setPaint(gradiente);
                 g2.fillRect(0, 0, getWidth(), getHeight());
 
-                // Os 3 "rivais de elemento" borrados ao fundo, todos do mesmo tamanho, arrumados
-                // em círculo (tipo a roda de tipos do Pokémon GO) — mais espaçados entre si, mas
-                // nas mesmas posições/direções de antes
                 int centroCirculoX = getWidth() / 2;
                 int centroCirculoY = (int) (getHeight() * 0.55);
                 int raioCirculo = (int) (getHeight() * 0.42);
@@ -484,8 +427,6 @@ public class AppGUI {
                 desenharRivalNoCirculo(g2, imagemMenuVenusaur, centroCirculoX, centroCirculoY, raioCirculo, 330, tamanhoRival);
                 g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
 
-                // Pokébola fechada e o título logo abaixo dela — sempre desenhados por cima,
-                // então nunca ficam ilegíveis por causa do que estiver atrás
                 int centroX = getWidth() / 2;
                 int tamanhoBola = (int) (getHeight() * 0.24);
                 int centroYBola = (int) (getHeight() * 0.20);
