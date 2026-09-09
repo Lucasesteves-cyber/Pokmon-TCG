@@ -7,6 +7,7 @@ public class Jogador {
     private CartaPokemon pokemonAtivo;
     private List<CartaPokemon> banco;
     private List<CartaPokemon> zonaMorta;
+    private List<Carta> premios;
 
     private boolean energiaAnexadaNestaRodada;
     private boolean atacouNestaRodada;
@@ -18,6 +19,7 @@ public class Jogador {
         this.mao = new ArrayList<>();
         this.banco = new ArrayList<>();
         this.zonaMorta = new ArrayList<>();
+        this.premios = new ArrayList<>();
         this.pokemonAtivo = null;
         this.energiaAnexadaNestaRodada = false;
         this.atacouNestaRodada = false;
@@ -233,7 +235,12 @@ public class Jogador {
         for (CartaPokemon p : banco) p.setEvoluiuNesteTurno(false);
     }
 
-    public boolean atacar(Jogador oponente) {
+    public boolean atacar(Jogador oponente, int turnoAtual) {
+        if (turnoAtual < 2) {
+            System.out.println("⚠️ Não é permitido atacar no primeiro turno da partida! Espere o próximo turno.");
+            return false;
+        }
+
         if (atacouNestaRodada) {
             System.out.println("⚠️ Você já atacou nesta rodada! Só é permitido 1 ataque por rodada.");
             return false;
@@ -271,6 +278,12 @@ public class Jogador {
             System.out.println("☠️ " + alvo.getNome() + " foi Nocauteado!");
             oponente.zonaMorta.add(alvo);
             oponente.pokemonAtivo = null;
+
+            if (!premios.isEmpty()) {
+                Carta premio = premios.remove(0);
+                mao.add(premio);
+                System.out.println("🏅 " + nome + " conquistou um prêmio! (" + (2 - premios.size()) + "/2)");
+            }
 
             if (!oponente.banco.isEmpty()) {
                 CartaPokemon novoAtivo = oponente.banco.remove(0);
@@ -525,4 +538,39 @@ public class Jogador {
     public CartaPokemon getPokemonAtivo() { return pokemonAtivo; }
     public List<CartaPokemon> getBanco() { return banco; }
     public List<CartaPokemon> getZonaMorta() { return zonaMorta; }
+    public List<Carta> getPremios() { return premios; }
+
+    public boolean usarMegaEvolucao(int indiceNaMao, CartaPokemon alvo) {
+        if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
+            System.out.println("Posição inválida na mão!");
+            return false;
+        }
+
+        Carta carta = mao.get(indiceNaMao);
+        if (!(carta instanceof CartaTreinador) || !((CartaTreinador) carta).getEfeito().equalsIgnoreCase("Mega Evolução")) {
+            System.out.println("Essa carta não é Mega Evolução!");
+            return false;
+        }
+
+        if (alvo == null) {
+            System.out.println("Escolha um Pokémon válido em campo!");
+            return false;
+        }
+
+        if (!alvo.isLendario()) {
+            System.out.println("⚠️ Mega Evolução só pode ser usada em Pokémon Lendários!");
+            return false;
+        }
+
+        if (alvo.isMegaEvoluido()) {
+            System.out.println("⚠️ " + alvo.getNome() + " já está Mega Evoluído!");
+            return false;
+        }
+
+        alvo.aplicarMegaEvolucao();
+        mao.remove(indiceNaMao);
+        System.out.println("✨🔥 " + nome + " usou Mega Evolução em " + alvo.getNome() + "! Agora tem "
+                + alvo.getHpAtual() + "/" + alvo.getHpMaximo() + " HP e " + alvo.getDanoAtaque() + " de dano!");
+        return true;
+    }
 }
