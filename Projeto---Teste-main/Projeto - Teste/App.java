@@ -142,7 +142,7 @@ public class App {
                 jogadorAtual.recuar(indiceBanco);
 
             } else if (opcao == 6) {
-                boolean atacou = jogadorAtual.atacar(adversario);
+                boolean atacou = jogadorAtual.atacar(adversario, numeroTurno);
 
                 if (atacou) {
 
