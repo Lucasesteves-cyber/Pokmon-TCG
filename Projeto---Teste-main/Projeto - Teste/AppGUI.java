@@ -179,6 +179,11 @@ public class AppGUI {
         App.adicionarCartasTreinador(jogador1);
         App.adicionarCartasTreinador(jogador2);
 
+        jogador1.getPremios().add(new CartaTreinador("Mega Evolução", "Mega Evolução"));
+        jogador1.getPremios().add(new CartaTreinador("Mega Evolução", "Mega Evolução"));
+        jogador2.getPremios().add(new CartaTreinador("Mega Evolução", "Mega Evolução"));
+        jogador2.getPremios().add(new CartaTreinador("Mega Evolução", "Mega Evolução"));
+
         jogador1.verificarBaralho();
         jogador2.verificarBaralho();
         for (int i = 0; i < 6; i++) jogador1.comprarCarta();
@@ -384,7 +389,7 @@ public class AppGUI {
             resultado[0] = texto.isEmpty() ? valorPadrao : texto;
             dialogo.dispose();
         });
-        campoTexto.addActionListener(e -> btnConfirmar.doClick()); // Enter também confirma
+        campoTexto.addActionListener(e -> btnConfirmar.doClick());
 
         painel.add(titulo);
         painel.add(campoTexto);
@@ -659,7 +664,6 @@ public class AppGUI {
         dialog.setLayout(new BorderLayout(8, 8));
         dialog.getContentPane().setBackground(COR_FUNDO);
 
-        // Cabeçalho com um mini-desenho da Pokébola, dando aquele toque visual sem prejudicar a leitura da lista
         JPanel cabecalhoPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 8));
         cabecalhoPanel.setBackground(COR_BANNER);
         JPanel iconePokebola = new JPanel() {
@@ -1004,7 +1008,10 @@ public class AppGUI {
     private void montarJanela() {
         frame = new JFrame("Pokémon TCG - Versus [" + VERSAO_BUILD + "]");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1100, 800);
+        Dimension tela = Toolkit.getDefaultToolkit().getScreenSize();
+        frame.setUndecorated(true);
+        frame.setSize(tela);
+        frame.setLocation(0, 0);
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
         frame.setLayout(new BorderLayout(0, 0));
         frame.getContentPane().setBackground(COR_FUNDO);
@@ -1219,10 +1226,6 @@ public class AppGUI {
         return null;
     }
 
-    /**
-     * Busca (em segundo plano, com cache) o tipo elemental de um Pokémon pra mostrar o símbolo
-     * do elemento do lado do nome na lista, antes mesmo de você adicionar ele ao time.
-     */
     private String obterTipoParaLista(int numeroDex, JList<String> lista) {
         if (cacheTipoPorNumero.containsKey(numeroDex)) {
             return cacheTipoPorNumero.get(numeroDex);
@@ -1347,9 +1350,15 @@ public class AppGUI {
         atualizarTela();
 
         if (bot.getPokemonAtivo() != null && bot.getPokemonAtivo().getQuantidadeEnergias() >= 1) {
-            boolean atacou = bot.atacar(oponenteDoBot);
+            boolean atacou = bot.atacar(oponenteDoBot, numeroTurno);
             if (atacou) {
                 mostrarFlashDeAtaque(new Color(220, 40, 40));
+
+                if (bot.getPremios().isEmpty()) {
+                    jogoAtivo = false;
+                    mostrarTelaFimDeJogo(bot, oponenteDoBot, "Conquistou os 2 prêmios!");
+                    return;
+                }
 
                 if (oponenteDoBot.getPokemonAtivo() == null && oponenteDoBot.getBanco().isEmpty()) {
                     jogoAtivo = false;
@@ -1817,6 +1826,10 @@ public class AppGUI {
 
         } else if (carta.getEfeito().equalsIgnoreCase("Evolução Rápida")) {
             usarEvolucaoRapidaFluxo(indiceNaMao);
+
+        } else if (carta.getEfeito().equalsIgnoreCase("Mega Evolução")) {
+            CartaPokemon alvo = escolherPokemonEmCampoDialog("Mega Evoluir qual Pokémon? (só funciona em Lendários)");
+            if (alvo != null) jogadorAtual.usarMegaEvolucao(indiceNaMao, alvo);
         }
 
         atualizarTela();
@@ -1954,9 +1967,15 @@ public class AppGUI {
 
     private void acaoAtacar() {
         if (ehTurnoDoBot) return;
-        boolean sucesso = jogadorAtual.atacar(adversario);
+        boolean sucesso = jogadorAtual.atacar(adversario, numeroTurno);
         if (sucesso) {
             mostrarFlashDeAtaque(new Color(220, 40, 40));
+
+            if (jogadorAtual.getPremios().isEmpty()) {
+                jogoAtivo = false;
+                mostrarTelaFimDeJogo(jogadorAtual, adversario, "Conquistou os 2 prêmios!");
+                return;
+            }
 
             if (adversario.getPokemonAtivo() == null && adversario.getBanco().isEmpty()) {
                 jogoAtivo = false;
