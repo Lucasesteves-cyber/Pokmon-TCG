@@ -1,17 +1,6 @@
 import java.util.*;
 
 public class CartaPokemon extends Carta {
-    private static final Set<String> NOMES_LENDARIOS = new HashSet<>(Arrays.asList(
-            "Articuno", "Zapdos", "Moltres", "Mewtwo", "Mew",
-            "Raikou", "Entei", "Suicune", "Lugia", "Ho oh", "Celebi",
-            "Regirock", "Regice", "Registeel", "Latias", "Latios", "Kyogre", "Groudon", "Rayquaza", "Jirachi", "Deoxys",
-            "Uxie", "Mesprit", "Azelf", "Dialga", "Palkia", "Heatran", "Regigigas", "Giratina", "Cresselia",
-            "Phione", "Manaphy", "Darkrai", "Shaymin", "Arceus",
-            "Victini", "Cobalion", "Terrakion", "Virizion", "Tornadus", "Thundurus", "Reshiram", "Zekrom",
-            "Landorus", "Kyurem", "Keldeo", "Meloetta", "Genesect",
-            "Xerneas", "Yveltal", "Zygarde", "Diancie", "Hoopa", "Volcanion"
-    ));
-
     private String tipoElemento;
     private int hpMaximo;
     private int hpAtual;
@@ -21,7 +10,6 @@ public class CartaPokemon extends Carta {
     private int limiteEnergias;
     private boolean evoluiuNesteTurno;
     private int numeroDex = -1;
-    private boolean megaEvoluido;
 
     public CartaPokemon(String nome, String tipoElemento, int hpMaximo, int danoAtaque) {
         this(nome, tipoElemento, hpMaximo, danoAtaque, null);
@@ -37,7 +25,6 @@ public class CartaPokemon extends Carta {
         this.evoluiDe = evoluiDe;
         this.limiteEnergias = 6 + (int) (Math.random() * 3);
         this.evoluiuNesteTurno = false;
-        this.megaEvoluido = false;
     }
 
     public String getTipoElemento() { return tipoElemento; }
@@ -52,18 +39,6 @@ public class CartaPokemon extends Carta {
     public void setEvoluiuNesteTurno(boolean valor) { this.evoluiuNesteTurno = valor; }
     public int getNumeroDex() { return numeroDex; }
     public void setNumeroDex(int numeroDex) { this.numeroDex = numeroDex; }
-    public boolean isLendario() { return NOMES_LENDARIOS.contains(getNome()); }
-    public boolean isMegaEvoluido() { return megaEvoluido; }
-
-    public void aplicarMegaEvolucao() {
-        if (megaEvoluido) return;
-        int hpAdicional = 60;
-        int danoAdicional = 45;
-        this.hpMaximo += hpAdicional;
-        this.hpAtual += hpAdicional;
-        this.danoAtaque += danoAdicional;
-        this.megaEvoluido = true;
-    }
 
     public void receberDano(int dano) {
         this.hpAtual -= dano;
@@ -99,9 +74,6 @@ public class CartaPokemon extends Carta {
         }
         if (evoluiuNesteTurno) {
             base += " 🚫(já evoluiu neste turno)";
-        }
-        if (megaEvoluido) {
-            base += " ✨MEGA";
         }
         return base;
     }
