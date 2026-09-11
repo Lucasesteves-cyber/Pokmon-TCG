@@ -539,38 +539,4 @@ public class Jogador {
     public List<CartaPokemon> getBanco() { return banco; }
     public List<CartaPokemon> getZonaMorta() { return zonaMorta; }
     public List<Carta> getPremios() { return premios; }
-
-    public boolean usarMegaEvolucao(int indiceNaMao, CartaPokemon alvo) {
-        if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
-            System.out.println("Posição inválida na mão!");
-            return false;
-        }
-
-        Carta carta = mao.get(indiceNaMao);
-        if (!(carta instanceof CartaTreinador) || !((CartaTreinador) carta).getEfeito().equalsIgnoreCase("Mega Evolução")) {
-            System.out.println("Essa carta não é Mega Evolução!");
-            return false;
-        }
-
-        if (alvo == null) {
-            System.out.println("Escolha um Pokémon válido em campo!");
-            return false;
-        }
-
-        if (!alvo.isLendario()) {
-            System.out.println("⚠️ Mega Evolução só pode ser usada em Pokémon Lendários!");
-            return false;
-        }
-
-        if (alvo.isMegaEvoluido()) {
-            System.out.println("⚠️ " + alvo.getNome() + " já está Mega Evoluído!");
-            return false;
-        }
-
-        alvo.aplicarMegaEvolucao();
-        mao.remove(indiceNaMao);
-        System.out.println("✨🔥 " + nome + " usou Mega Evolução em " + alvo.getNome() + "! Agora tem "
-                + alvo.getHpAtual() + "/" + alvo.getHpMaximo() + " HP e " + alvo.getDanoAtaque() + " de dano!");
-        return true;
-    }
 }
