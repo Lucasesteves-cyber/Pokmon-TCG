@@ -179,10 +179,10 @@ public class AppGUI {
         App.adicionarCartasTreinador(jogador1);
         App.adicionarCartasTreinador(jogador2);
 
-        jogador1.getPremios().add(new CartaTreinador("Mega Evolução", "Mega Evolução"));
-        jogador1.getPremios().add(new CartaTreinador("Mega Evolução", "Mega Evolução"));
-        jogador2.getPremios().add(new CartaTreinador("Mega Evolução", "Mega Evolução"));
-        jogador2.getPremios().add(new CartaTreinador("Mega Evolução", "Mega Evolução"));
+        jogador1.getPremios().add(new CartaTreinador("Troféu", "Troféu"));
+        jogador1.getPremios().add(new CartaTreinador("Troféu", "Troféu"));
+        jogador2.getPremios().add(new CartaTreinador("Troféu", "Troféu"));
+        jogador2.getPremios().add(new CartaTreinador("Troféu", "Troféu"));
 
         jogador1.verificarBaralho();
         jogador2.verificarBaralho();
@@ -1826,10 +1826,6 @@ public class AppGUI {
 
         } else if (carta.getEfeito().equalsIgnoreCase("Evolução Rápida")) {
             usarEvolucaoRapidaFluxo(indiceNaMao);
-
-        } else if (carta.getEfeito().equalsIgnoreCase("Mega Evolução")) {
-            CartaPokemon alvo = escolherPokemonEmCampoDialog("Mega Evoluir qual Pokémon? (só funciona em Lendários)");
-            if (alvo != null) jogadorAtual.usarMegaEvolucao(indiceNaMao, alvo);
         }
 
         atualizarTela();
