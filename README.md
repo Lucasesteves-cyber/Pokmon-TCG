@@ -6,22 +6,38 @@ Projeto desenvolvido como exercício de Programação Orientada a Objetos, evolu
 
 ---
 
+## 📁 Estrutura de pastas (pacotes)
+
+O código é organizado em 4 pacotes Java, por responsabilidade:
+
+```
+Projeto - Teste/
+├── modelo/     → Carta, CartaPokemon, CartaEnergia, CartaTreinador, Jogador
+├── efeitos/    → EfeitoTreinador, EfeitoPocao, EfeitoCuraTotal, EfeitoTroca,
+│                 EfeitoEvolucaoRapida, EfeitoNenhum, EfeitoTreinadorRegistro,
+│                 TipoAlvo, ParametrosEfeito
+├── fabrica/    → CartaPokemonFactory
+└── ui/         → AppGUI, App
+```
+
 ## 🎮 Como rodar
 
-Pré-requisitos: **JDK 17+** instalado.
+Pré-requisitos: **JDK 17+** instalado. Rode os comandos a partir da pasta `Projeto - Teste` (a que contém as pastas `modelo/`, `efeitos/`, `fabrica/` e `ui/`).
 
 ```bash
-javac -encoding UTF-8 *.java
-java AppGUI
+javac -encoding UTF-8 modelo/*.java efeitos/*.java fabrica/*.java ui/*.java
+java ui.AppGUI
 ```
 
 > ⚠️ O `-encoding UTF-8` é obrigatório — sem ele, os emojis e acentos podem aparecer corrompidos dependendo da configuração do Windows.
+>
+> ⚠️ Como as classes agora estão em pacotes, o comando para rodar mudou de `java AppGUI` para **`java ui.AppGUI`** (com o nome do pacote na frente).
 
 Também existe uma versão simplificada em **terminal** (`App.java`), mantida como o protótipo original:
 
 ```bash
-javac -encoding UTF-8 *.java
-java App
+javac -encoding UTF-8 modelo/*.java efeitos/*.java fabrica/*.java ui/*.java
+java ui.App
 ```
 
 A versão gráfica (`AppGUI`) é a recomendada — tem todas as funcionalidades mais recentes.
@@ -87,15 +103,37 @@ O jogo segue (com algumas simplificações) a estrutura oficial de turno do TCG:
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `Carta.java` | Classe abstrata base de qualquer carta |
-| `CartaPokemon.java` | Carta de Pokémon (HP, dano, energia, evolução) |
-| `CartaEnergia.java` | Carta de Energia |
-| `CartaTreinador.java` | Carta de Treinador (Poção, Troca, etc) |
-| `Jogador.java` | Toda a lógica de jogo: baralho, mão, campo, ataque, evolução, regras de turno |
-| `App.java` | Versão em terminal (Scanner) — protótipo original |
-| `AppGUI.java` | Versão gráfica (Swing) — interface completa, integração com a PokeAPI, IA do Bot |
+| `modelo/Carta.java` | Classe abstrata base de qualquer carta |
+| `modelo/CartaPokemon.java` | Carta de Pokémon (HP, dano, energia, evolução) |
+| `modelo/CartaEnergia.java` | Carta de Energia |
+| `modelo/CartaTreinador.java` | Carta de Treinador — guarda a `EfeitoTreinador` (Strategy) correspondente ao seu efeito |
+| `modelo/Jogador.java` | Toda a lógica de jogo: baralho, mão, campo, ataque, evolução, regras de turno |
+| `ui/App.java` | Versão em terminal (Scanner) — protótipo original |
+| `ui/AppGUI.java` | Versão gráfica (Swing) — interface completa, integração com a PokeAPI, IA do Bot |
+| `fabrica/CartaPokemonFactory.java` | **Factory Method** — ponto único de criação de `CartaPokemon` (PokeAPI, times fixos e clonagem) |
+| `efeitos/EfeitoTreinador.java` | **Strategy** — interface do efeito de uma carta de treinador |
+| `efeitos/EfeitoPocao.java`, `EfeitoCuraTotal.java`, `EfeitoTroca.java`, `EfeitoEvolucaoRapida.java`, `EfeitoNenhum.java` | Estratégias concretas de cada efeito de treinador |
+| `efeitos/EfeitoTreinadorRegistro.java` | Resolve, pelo nome, qual `EfeitoTreinador` pertence a cada `CartaTreinador` |
+| `efeitos/TipoAlvo.java` | Enum que descreve que tipo de alvo cada efeito precisa (usado pela interface gráfica) |
+| `efeitos/ParametrosEfeito.java` | Agrupa os parâmetros (alvo, índice de banco, etc.) coletados pela interface antes de aplicar um efeito |
 
 Nenhuma biblioteca externa é usada — só a biblioteca padrão do Java (`javax.swing`, `java.awt`, `java.net`, `java.io`, `java.util`).
+
+---
+
+## 🏗️ Padrões de Projeto (GoF)
+
+### Strategy — efeitos das cartas de Treinador
+
+Antes: `AppGUI` decidia o que fazer com uma carta de treinador comparando o nome do efeito (`if (carta.getEfeito().equalsIgnoreCase("Poção")) ...`), e `Jogador` tinha um método próprio, com validação duplicada, para cada efeito.
+
+Agora, cada efeito (Poção, Cura Total, Troca, Evolução Rápida) é uma classe que implementa `EfeitoTreinador`. `CartaTreinador` guarda a estratégia correspondente, `Jogador.usarCartaTreinador(...)` virou o único ponto de entrada (que delega para `estrategia.aplicar(...)`), e `AppGUI` decide qual diálogo mostrar consultando `efeito.getTipoAlvoNecessario()` — sem nenhuma comparação de String. Isso torna trivial adicionar um novo efeito de treinador no futuro: basta criar a classe e registrá-la em `EfeitoTreinadorRegistro`, sem tocar em `Jogador` ou `AppGUI`.
+
+### Factory Method — criação de `CartaPokemon`
+
+Antes: `new CartaPokemon(...)` aparecia espalhado por `AppGUI` e `App`, com 4 blocos de código **idênticos** para clonar uma carta (copiar nome, tipo, HP, dano, pré-evolução e número da Pokédex), e a lógica de aplicar HP/dano padrão quando a PokeAPI não retornava esses dados.
+
+Agora, `CartaPokemonFactory` centraliza essa criação em três métodos (`criarDaPokeAPI`, `criarFixo` e `clonar`), eliminando a duplicação e concentrando num único lugar as regras de o que fazer quando os dados vêm incompletos.
 
 ---
 
