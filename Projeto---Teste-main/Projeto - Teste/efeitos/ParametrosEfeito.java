@@ -1,11 +1,10 @@
 package efeitos;
 
 import modelo.CartaPokemon;
-import ui.App;
 
 /**
  * Agrupa os parâmetros que a interface gráfica (ou o console, no protótipo
- * de {@link App}) coleta do jogador para aplicar o efeito de uma carta de
+ * de {@link ui.App}) coleta do jogador para aplicar o efeito de uma carta de
  * treinador. Cada {@link EfeitoTreinador} concreto só lê os campos de que
  * realmente precisa — os demais ficam com seus valores padrão.
  */

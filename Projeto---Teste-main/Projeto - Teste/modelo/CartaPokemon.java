@@ -1,6 +1,5 @@
 package modelo;
 
-import fabrica.CartaPokemonFactory;
 
 import java.util.*;
 
@@ -10,7 +9,7 @@ import java.util.*;
  * (HP atual/máximo, dano de ataque, energias anexadas).
  *
  * <p>Instâncias desta classe são criadas preferencialmente por
- * {@link CartaPokemonFactory}, que centraliza as regras de criação a partir
+ * {@link fabrica.CartaPokemonFactory}, que centraliza as regras de criação a partir
  * de dados fixos ou da PokeAPI (padrão de projeto <b>Factory Method</b>).</p>
  */
 public class CartaPokemon extends Carta {

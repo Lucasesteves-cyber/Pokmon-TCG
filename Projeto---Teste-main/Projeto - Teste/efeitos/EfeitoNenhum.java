@@ -1,6 +1,5 @@
 package efeitos;
 
-import modelo.Carta;
 import modelo.Jogador;
 
 /**

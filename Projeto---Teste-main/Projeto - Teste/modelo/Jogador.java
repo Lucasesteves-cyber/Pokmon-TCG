@@ -1,13 +1,7 @@
 package modelo;
 
-import efeitos.EfeitoCuraTotal;
-import efeitos.EfeitoEvolucaoRapida;
-import efeitos.EfeitoPocao;
 import efeitos.EfeitoTreinador;
-import efeitos.EfeitoTroca;
 import efeitos.ParametrosEfeito;
-import ui.App;
-import ui.AppGUI;
 
 import java.util.*;
 
@@ -16,7 +10,7 @@ import java.util.*;
  * de jogo: baralho, mão, Pokémon ativo, banco, zona morta e prêmios.
  * Concentra as regras de negócio da partida (comprar carta, jogar Pokémon,
  * anexar energia, evoluir, atacar, usar cartas de treinador), enquanto a
- * interface gráfica ({@link AppGUI}) cuida apenas de coletar as escolhas do
+ * interface gráfica ({@link ui.AppGUI}) cuida apenas de coletar as escolhas do
  * jogador e exibir o resultado.
  */
 public class Jogador {
@@ -286,7 +280,7 @@ public class Jogador {
 
     /**
      * Atalho de compatibilidade para usar uma carta "Evolução Rápida". Internamente
-     * delega para {@link #usarCartaTreinador} e para a estratégia {@link EfeitoEvolucaoRapida}.
+     * delega para {@link #usarCartaTreinador} e para a estratégia {@link efeitos.EfeitoEvolucaoRapida}.
      */
     public boolean usarEvolucaoRapida(int indiceCartaTreinador, int indiceCartaEvolucao, CartaPokemon alvoEmCampo) {
         ParametrosEfeito parametros = new ParametrosEfeito();
@@ -434,7 +428,7 @@ public class Jogador {
 
     /**
      * Atalho de compatibilidade para usar uma carta "Poção". Internamente
-     * delega para {@link #usarCartaTreinador} e para a estratégia {@link EfeitoPocao}.
+     * delega para {@link #usarCartaTreinador} e para a estratégia {@link efeitos.EfeitoPocao}.
      */
     public boolean usarPocao(int indiceNaMao, CartaPokemon alvo) {
         ParametrosEfeito parametros = new ParametrosEfeito();
@@ -444,7 +438,7 @@ public class Jogador {
 
     /**
      * Atalho de compatibilidade para usar uma carta "Cura Total". Internamente
-     * delega para {@link #usarCartaTreinador} e para a estratégia {@link EfeitoCuraTotal}.
+     * delega para {@link #usarCartaTreinador} e para a estratégia {@link efeitos.EfeitoCuraTotal}.
      */
     public boolean usarCuraTotal(int indiceNaMao, CartaPokemon alvo) {
         ParametrosEfeito parametros = new ParametrosEfeito();
@@ -454,7 +448,7 @@ public class Jogador {
 
     /**
      * Atalho de compatibilidade para usar uma carta "Troca". Internamente
-     * delega para {@link #usarCartaTreinador} e para a estratégia {@link EfeitoTroca}.
+     * delega para {@link #usarCartaTreinador} e para a estratégia {@link efeitos.EfeitoTroca}.
      */
     public boolean usarTroca(int indiceNaMao, int indiceBanco) {
         ParametrosEfeito parametros = new ParametrosEfeito();
@@ -477,7 +471,7 @@ public class Jogador {
     /** @return {@code true} se este jogador já recuou nesta rodada */
     public boolean isRecuouNesteTurno() { return recuouNesteTurno; }
 
-    /** Imprime no console um resumo do estado atual deste jogador (usado pelo protótipo em {@link App}). */
+    /** Imprime no console um resumo do estado atual deste jogador (usado pelo protótipo em {@link ui.App}). */
     public void mostrarTabuleiro() {
         System.out.println("\n================ TABULEIRO DE " + nome.toUpperCase() + " ================");
         System.out.println("🔴 POKÉMON ATIVO: " + (pokemonAtivo != null ? pokemonAtivo : "[Nenhum]"));
@@ -517,7 +511,7 @@ public class Jogador {
         return false;
     }
 
-    /** Imprime no console as cartas atualmente na mão deste jogador (usado pelo protótipo em {@link App}). */
+    /** Imprime no console as cartas atualmente na mão deste jogador (usado pelo protótipo em {@link ui.App}). */
     public void mostrarMao() {
         System.out.println("👋 CARTAS NA SUA MÃO:");
         if (mao.isEmpty()) {

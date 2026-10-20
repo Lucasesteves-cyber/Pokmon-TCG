@@ -1,8 +1,6 @@
 package fabrica;
 
 import modelo.CartaPokemon;
-import ui.App;
-import ui.AppGUI;
 
 /**
  * Centraliza a criação de {@link CartaPokemon} (padrão de projeto
