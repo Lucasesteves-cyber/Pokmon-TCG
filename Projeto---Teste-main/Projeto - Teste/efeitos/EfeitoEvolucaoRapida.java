@@ -1,3 +1,9 @@
+package efeitos;
+
+import modelo.Carta;
+import modelo.CartaPokemon;
+import modelo.Jogador;
+
 /**
  * Efeito da carta "Evolução Rápida": evolui um Pokémon em campo imediatamente,
  * sem esperar o Turno 2 e sem limite de uma evolução por turno.

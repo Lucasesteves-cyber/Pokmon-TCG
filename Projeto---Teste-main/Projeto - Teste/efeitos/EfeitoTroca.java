@@ -1,3 +1,7 @@
+package efeitos;
+
+import modelo.Jogador;
+
 /** Efeito da carta "Troca": recua o Pokémon ativo gratuitamente, sem gastar energia. */
 public class EfeitoTroca implements EfeitoTreinador {
 

@@ -1,3 +1,7 @@
+package efeitos;
+
+import modelo.Jogador;
+
 /**
  * Estratégia (padrão de projeto <b>Strategy</b>) que encapsula o
  * comportamento de um efeito de carta de treinador.

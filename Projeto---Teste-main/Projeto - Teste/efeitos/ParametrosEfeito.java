@@ -1,3 +1,8 @@
+package efeitos;
+
+import modelo.CartaPokemon;
+import ui.App;
+
 /**
  * Agrupa os parâmetros que a interface gráfica (ou o console, no protótipo
  * de {@link App}) coleta do jogador para aplicar o efeito de uma carta de

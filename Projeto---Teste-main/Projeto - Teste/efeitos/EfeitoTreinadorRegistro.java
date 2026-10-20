@@ -1,3 +1,7 @@
+package efeitos;
+
+import modelo.CartaTreinador;
+
 import java.util.HashMap;
 import java.util.Map;
 

@@ -1,3 +1,8 @@
+package efeitos;
+
+import modelo.CartaPokemon;
+import modelo.Jogador;
+
 /** Efeito da carta "Cura Total": restaura o HP de um Pokémon em campo por completo. */
 public class EfeitoCuraTotal implements EfeitoTreinador {
 

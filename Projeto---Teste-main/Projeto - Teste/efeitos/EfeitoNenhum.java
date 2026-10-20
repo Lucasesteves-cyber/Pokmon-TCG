@@ -1,3 +1,8 @@
+package efeitos;
+
+import modelo.Carta;
+import modelo.Jogador;
+
 /**
  * Estratégia nula (padrão <i>Null Object</i>, complementar ao Strategy):
  * usada por cartas de treinador que não têm efeito jogável, como o

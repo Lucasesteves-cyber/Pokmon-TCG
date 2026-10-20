@@ -1,3 +1,8 @@
+package efeitos;
+
+import modelo.CartaPokemon;
+import modelo.Jogador;
+
 /** Efeito da carta "Poção": cura 30 de HP de um Pokémon em campo. */
 public class EfeitoPocao implements EfeitoTreinador {
 

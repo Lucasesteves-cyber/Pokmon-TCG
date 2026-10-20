@@ -1,3 +1,5 @@
+package efeitos;
+
 /**
  * Descreve que tipo de alvo a interface gráfica precisa coletar do jogador
  * antes de aplicar um {@link EfeitoTreinador}.
