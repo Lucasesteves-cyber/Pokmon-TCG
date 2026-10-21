@@ -62,6 +62,8 @@ public class AppGUI {
     private static final Color COR_PLANTA = new Color(76, 175, 80);
     private static final Color COR_NORMAL = new Color(158, 158, 158);
     private static final Color COR_TREINADOR = new Color(255, 193, 7);
+    private static final int LARGURA_ATIVO = 150, ALTURA_ATIVO = 210;
+    private static final int LARGURA_BANCO = 120, ALTURA_BANCO = 168;
     private static final Color COR_FUNDO = new Color(245, 247, 250);
     private static final Color COR_BANNER = new Color(33, 33, 66);
 
@@ -157,7 +159,7 @@ public class AppGUI {
         List<CartaPokemon> composicao2;
 
         if (modoSolo) {
-            jog2Temp = new Jogador("Bot 🤖");
+            jog2Temp = new Jogador("Bot");
             construirTimeAleatorioBotComLoading(jog2Temp);
             composicao2 = capturarComposicao(jog2Temp);
         } else {
@@ -253,7 +255,7 @@ public class AppGUI {
         List<CartaPokemon> composicao2;
 
         if (modoSoloSalvo) {
-            jog2Temp = new Jogador("Bot 🤖");
+            jog2Temp = new Jogador("Bot");
             construirTimeAleatorioBotComLoading(jog2Temp);
             composicao2 = capturarComposicao(jog2Temp);
         } else {
@@ -1087,12 +1089,12 @@ public class AppGUI {
 
         campoJogadorPanel = new JPanel();
         campoJogadorPanel.setBackground(COR_FUNDO);
-        campoJogadorPanel.setBorder(criarBordaTitulo("🎮 Seu Campo de Batalha"));
+        campoJogadorPanel.setBorder(criarBordaTitulo("Seu Campo de Batalha"));
         campoJogadorPanel.setLayout(new BorderLayout(12, 0));
 
         maoPanel = new JPanel();
         maoPanel.setBackground(COR_FUNDO);
-        maoPanel.setBorder(criarBordaTitulo("🃏 Sua Mão (clique numa carta pra jogar)"));
+        maoPanel.setBorder(criarBordaTitulo("Sua Mão (clique numa carta pra jogar)"));
         maoPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 10));
         JScrollPane maoScroll = new JScrollPane(maoPanel);
         maoScroll.setPreferredSize(new Dimension(620, 260));
@@ -1116,16 +1118,16 @@ public class AppGUI {
         JPanel rodapePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 12));
         rodapePanel.setBackground(COR_BANNER);
 
-        JButton btnAtacar = criarBotaoAcao("⚔️ Atacar", new Color(211, 47, 47));
+        JButton btnAtacar = criarBotaoAcao("Atacar", new Color(211, 47, 47));
         btnAtacar.addActionListener(e -> acaoAtacar());
 
-        JButton btnPassar = criarBotaoAcao("🏳️ Passar Turno", new Color(96, 125, 139));
+        JButton btnPassar = criarBotaoAcao("Passar Turno", new Color(96, 125, 139));
         btnPassar.addActionListener(e -> acaoPassarTurno());
 
-        JButton btnHistorico = criarBotaoAcao("📜 Ver Histórico", new Color(84, 58, 133));
+        JButton btnHistorico = criarBotaoAcao("Ver Histórico", new Color(84, 58, 133));
         btnHistorico.addActionListener(e -> abrirHistoricoDialog());
 
-        JButton btnSair = criarBotaoAcao("🚪 Sair do Jogo", new Color(66, 66, 66));
+        JButton btnSair = criarBotaoAcao("Sair do Jogo", new Color(66, 66, 66));
         btnSair.addActionListener(e -> System.exit(0));
 
         rodapePanel.add(btnAtacar);
@@ -1208,7 +1210,7 @@ public class AppGUI {
                 try {
                     String url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" + numeroFinal + ".png";
                     java.awt.Image imagem = ImageIO.read(java.net.URI.create(url).toURL());
-                    java.awt.Image redimensionada = imagem.getScaledInstance(64, 64, java.awt.Image.SCALE_SMOOTH);
+                    java.awt.Image redimensionada = imagem.getScaledInstance(96, 96, java.awt.Image.SCALE_SMOOTH);
                     icone = new ImageIcon(redimensionada);
                 } catch (Exception e) {
 
@@ -1511,9 +1513,9 @@ public class AppGUI {
 
     private void atualizarTela() {
         turnoLabel.setText("TURNO " + numeroTurno + " — VEZ DE " + jogadorAtual.getNome().toUpperCase());
-        adversarioLabel.setText("🆚 Pokémon Ativo de " + adversario.getNome() + ": "
+        adversarioLabel.setText("Pokémon Ativo de " + adversario.getNome() + ": "
                 + (adversario.getPokemonAtivo() != null ? adversario.getPokemonAtivo().toString() : "[Nenhum]")
-                + "   |   🃏 Sua Mão: " + jogadorAtual.getMao().size() + " cartas");
+                + "   |   Sua Mão: " + jogadorAtual.getMao().size() + " cartas");
 
         montarCampoJogador();
         montarMaoJogador();
@@ -1531,22 +1533,23 @@ public class AppGUI {
 
         JPanel linhaAtivo = new JPanel(new GridLayout(1, 5, 10, 6));
         linhaAtivo.setBackground(COR_FUNDO);
-        JLabel rotuloAtivo = new JLabel("⚔️ ZONA AVANÇADA (Ativo)");
+        JLabel rotuloAtivo = new JLabel("ZONA AVANÇADA (Ativo)");
         rotuloAtivo.setFont(new Font("Segoe UI", Font.BOLD, 12));
         rotuloAtivo.setForeground(COR_BANNER);
 
         CartaPokemon ativo = jogadorAtual.getPokemonAtivo();
-        JButton btnAtivo = new JButton(ativo != null ? htmlPokemon("🔴 ATIVO", ativo) : htmlVazio("🔴 ATIVO"));
-        estilizarBotaoCampo(btnAtivo, ativo);
+        JComponent cartaAtivo;
         if (ativo != null) {
+            CartaVisual btnAtivo = new CartaVisual(ativo, imagemDoSprite(ativo), LARGURA_ATIVO, ALTURA_ATIVO);
             btnAtivo.addActionListener(e -> abrirMenuPokemon(ativo, -1));
+            cartaAtivo = btnAtivo;
         } else {
-            btnAtivo.setEnabled(false);
+            cartaAtivo = CartaVisual.espacoVazio("ATIVO", LARGURA_ATIVO, ALTURA_ATIVO);
         }
 
         linhaAtivo.add(criarEspacoInvisivel());
         linhaAtivo.add(criarEspacoInvisivel());
-        linhaAtivo.add(btnAtivo);
+        linhaAtivo.add(centralizar(cartaAtivo));
         linhaAtivo.add(criarEspacoInvisivel());
         linhaAtivo.add(criarEspacoInvisivel());
 
@@ -1557,20 +1560,16 @@ public class AppGUI {
         for (int i = 0; i < 5; i++) {
             if (i < banco.size()) {
                 CartaPokemon p = banco.get(i);
-                JButton btnBanco = new JButton(htmlPokemon("🔵 BANCO " + (i + 1), p));
-                estilizarBotaoCampo(btnBanco, p);
+                CartaVisual btnBanco = new CartaVisual(p, imagemDoSprite(p), LARGURA_BANCO, ALTURA_BANCO);
                 final int indiceBanco = i;
                 btnBanco.addActionListener(e -> abrirMenuPokemon(p, indiceBanco));
-                linhaBanco.add(btnBanco);
+                linhaBanco.add(centralizar(btnBanco));
             } else {
-                JButton btnVazio = new JButton(htmlVazio("🔵 BANCO " + (i + 1)));
-                estilizarBotaoCampo(btnVazio, null);
-                btnVazio.setEnabled(false);
-                linhaBanco.add(btnVazio);
+                linhaBanco.add(centralizar(CartaVisual.espacoVazio("BANCO " + (i + 1), LARGURA_BANCO, ALTURA_BANCO)));
             }
         }
 
-        JLabel rotuloBanco = new JLabel("🛡️ BANCO DE RESERVAS");
+        JLabel rotuloBanco = new JLabel("BANCO DE RESERVAS");
         rotuloBanco.setFont(new Font("Segoe UI", Font.BOLD, 12));
         rotuloBanco.setForeground(COR_BANNER);
         rotuloBanco.setBorder(BorderFactory.createEmptyBorder(4, 12, 0, 0));
@@ -1614,7 +1613,8 @@ public class AppGUI {
         if (!zonaMorta.isEmpty()) {
             ImageIcon spriteUltimoMorto = carregarSprite(zonaMorta.get(zonaMorta.size() - 1));
             if (spriteUltimoMorto != null) {
-                btnZonaMorta.setIcon(spriteUltimoMorto);
+                btnZonaMorta.setIcon(new ImageIcon(spriteUltimoMorto.getImage()
+                        .getScaledInstance(64, 64, java.awt.Image.SCALE_SMOOTH)));
                 btnZonaMorta.setVerticalTextPosition(SwingConstants.BOTTOM);
                 btnZonaMorta.setHorizontalTextPosition(SwingConstants.CENTER);
             }
@@ -1630,10 +1630,10 @@ public class AppGUI {
 
     private String construirRotuloZonaMorta(List<CartaPokemon> zonaMorta) {
         if (zonaMorta.isEmpty()) {
-            return "<html><div style='text-align:center;'>☠️ <b>ZONA MORTA</b><br><br>[Vazio]</div></html>";
+            return "<html><div style='text-align:center;'><b>ZONA MORTA</b><br><br>[Vazio]</div></html>";
         }
         CartaPokemon ultimo = zonaMorta.get(zonaMorta.size() - 1);
-        return "<html><div style='text-align:center;'>☠️ <b>ZONA MORTA</b><br>"
+        return "<html><div style='text-align:center;'><b>ZONA MORTA</b><br>"
                 + "<b>" + ultimo.getNome() + "</b><br>(" + zonaMorta.size() + " no total)</div></html>";
     }
 
@@ -1656,37 +1656,18 @@ public class AppGUI {
         return espaco;
     }
 
-    private void estilizarBotaoCampo(JButton botao, CartaPokemon p) {
-        botao.setPreferredSize(new Dimension(170, 140));
-        botao.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        botao.setOpaque(true);
-        botao.setBorderPainted(true);
-        botao.setFocusPainted(false);
-        botao.setVerticalTextPosition(SwingConstants.BOTTOM);
-        botao.setHorizontalTextPosition(SwingConstants.CENTER);
-        if (p != null) {
-            botao.setBackground(corDoTipo(p.getTipoElemento()));
-            botao.setForeground(Color.WHITE);
-            ImageIcon sprite = carregarSprite(p);
-            if (sprite != null) botao.setIcon(sprite);
-        } else {
-            botao.setBackground(new Color(230, 230, 235));
-            botao.setForeground(new Color(120, 120, 120));
-        }
+    /** Devolve a imagem do sprite (ou null enquanto ainda está baixando). */
+    private Image imagemDoSprite(CartaPokemon p) {
+        ImageIcon icone = carregarSprite(p);
+        return icone != null ? icone.getImage() : null;
     }
 
-    private String htmlPokemon(String cabecalho, CartaPokemon p) {
-        return "<html><div style='text-align:center; width:150px;'>"
-                + "<b>" + cabecalho + "</b><br>"
-                + emojiDoTipo(p.getTipoElemento()) + " <b>" + p.getNome() + "</b><br>"
-                + barraHP(p.getHpAtual(), p.getHpMaximo()) + "<br>"
-                + "HP " + p.getHpAtual() + "/" + p.getHpMaximo() + "<br>"
-                + "⚡ " + p.getQuantidadeEnergias() + "/" + p.getLimiteEnergias()
-                + "</div></html>";
-    }
-
-    private String htmlVazio(String cabecalho) {
-        return "<html><div style='text-align:center;'><b>" + cabecalho + "</b><br>[Vazio]</div></html>";
+    /** Coloca a carta no centro da célula, para o GridLayout não esticar a carta. */
+    private JPanel centralizar(JComponent componente) {
+        JPanel caixa = new JPanel(new GridBagLayout());
+        caixa.setOpaque(false);
+        caixa.add(componente);
+        return caixa;
     }
 
     private void montarMaoJogador() {
@@ -1704,36 +1685,13 @@ public class AppGUI {
                     continue;
                 }
 
-                String rotulo = "<html><div style='text-align:center; width:130px;'>"
-                        + (p.isBasico() ? "🟢 <b>" : "✨ <b>") + p.getNome() + "</b><br>"
-                        + emojiDoTipo(p.getTipoElemento()) + " " + p.getTipoElemento() + "<br>"
-                        + "HP " + p.getHpMaximo() + " | Dano " + p.getDanoAtaque()
-                        + "</div></html>";
-                JButton btnCarta = new JButton(rotulo);
-                btnCarta.setPreferredSize(new Dimension(150, 110));
-                btnCarta.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-                btnCarta.setBackground(corDoTipo(p.getTipoElemento()));
-                btnCarta.setForeground(Color.WHITE);
-                btnCarta.setOpaque(true);
-                btnCarta.setFocusPainted(false);
-                btnCarta.setVerticalTextPosition(SwingConstants.BOTTOM);
-                btnCarta.setHorizontalTextPosition(SwingConstants.CENTER);
-                ImageIcon spriteMao = carregarSprite(p);
-                if (spriteMao != null) btnCarta.setIcon(spriteMao);
+                CartaVisual btnCarta = new CartaVisual(p, imagemDoSprite(p));
                 btnCarta.addActionListener(e -> acaoClicarCartaPokemon(indice, p));
                 maoPanel.add(btnCarta);
 
             } else if (carta instanceof CartaTreinador) {
                 CartaTreinador t = (CartaTreinador) carta;
-                String rotulo = "<html><div style='text-align:center; width:120px;'>📘 <b>"
-                        + t.getNome() + "</b><br>[" + t.getEfeito() + "]</div></html>";
-                JButton btnCarta = new JButton(rotulo);
-                btnCarta.setPreferredSize(new Dimension(150, 65));
-                btnCarta.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-                btnCarta.setBackground(COR_TREINADOR);
-                btnCarta.setForeground(new Color(60, 45, 0));
-                btnCarta.setOpaque(true);
-                btnCarta.setFocusPainted(false);
+                CartaVisual btnCarta = new CartaVisual(t);
                 btnCarta.addActionListener(e -> acaoClicarCartaTreinador(indice, t));
                 maoPanel.add(btnCarta);
             }
