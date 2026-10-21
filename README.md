@@ -17,7 +17,7 @@ Projeto - Teste/
 │                 EfeitoEvolucaoRapida, EfeitoNenhum, EfeitoTreinadorRegistro,
 │                 TipoAlvo, ParametrosEfeito
 ├── fabrica/    → CartaPokemonFactory
-└── ui/         → AppGUI, App
+└── ui/         → AppGUI, App , CartaVisual
 ```
 
 ## 🎮 Como rodar
