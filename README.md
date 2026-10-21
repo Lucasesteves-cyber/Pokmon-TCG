@@ -17,7 +17,7 @@ Projeto - Teste/
 │                 EfeitoEvolucaoRapida, EfeitoNenhum, EfeitoTreinadorRegistro,
 │                 TipoAlvo, ParametrosEfeito
 ├── fabrica/    → CartaPokemonFactory
-└── ui/         → AppGUI, App , CartaVisual
+└── ui/         → AppGUI, App, CartaVisual
 ```
 
 ## 🎮 Como rodar
@@ -29,7 +29,9 @@ javac -encoding UTF-8 modelo/*.java efeitos/*.java fabrica/*.java ui/*.java
 java ui.AppGUI
 ```
 
-> ⚠️ O `-encoding UTF-8` é obrigatório — sem ele, os emojis e acentos podem aparecer corrompidos dependendo da configuração do Windows.
+> ⚠️ O `-encoding UTF-8` é obrigatório — sem ele, os acentos podem aparecer corrompidos dependendo da configuração do Windows.
+>
+> ⚠️ Se depois de alterar o código o jogo continuar igual, apague os `.class` antigos (e a pasta `bin`, se existir) e compile de novo — quando a compilação falha, o `java` roda a versão velha que ficou compilada.
 >
 > ⚠️ Como as classes agora estão em pacotes, o comando para rodar mudou de `java AppGUI` para **`java ui.AppGUI`** (com o nome do pacote na frente).
 
@@ -92,6 +94,13 @@ O jogo segue (com algumas simplificações) a estrutura oficial de turno do TCG:
 ## 🎨 Interface
 
 - Janela em **tela cheia**, com tabuleiro dividido em Zona Ativa, Banco, Baralho e Zona Morta (cemitério dos nocauteados).
+- **Cartas com cara de carta**: em vez de botões quadrados, cada carta da mão, do Ativo e do Banco é desenhada pela classe `CartaVisual`:
+  - cantos arredondados, sombra e moldura na cor do tipo (Água azul, Fogo laranja, Planta verde, etc.);
+  - cabeçalho com nome e HP, **barra de vida** que muda de cor (verde → amarelo → vermelho);
+  - ilustração do Pokémon, etiqueta do tipo e etiqueta "Evolução" quando não é Básico;
+  - linha do ataque com o dano e **bolinhas de energia** (cheias = anexadas, vazias = espaço livre até o limite);
+  - a carta "levanta" quando o mouse passa por cima, e fica apagada quando não pode ser usada;
+  - cartas de Treinador e Energia têm um layout próprio, e os espaços vazios do Banco aparecem tracejados.
 - Ilustrações reais dos Pokémon, carregadas da PokeAPI (com cache e carregamento em segundo plano, sem travar a tela).
 - Notificações do tipo "toast" no canto da tela pra cada evento do jogo (substituem o log fixo, que agora fica disponível sob demanda no botão "Ver Histórico").
 - Efeito visual de flash ao atacar.
@@ -110,6 +119,7 @@ O jogo segue (com algumas simplificações) a estrutura oficial de turno do TCG:
 | `modelo/Jogador.java` | Toda a lógica de jogo: baralho, mão, campo, ataque, evolução, regras de turno |
 | `ui/App.java` | Versão em terminal (Scanner) — protótipo original |
 | `ui/AppGUI.java` | Versão gráfica (Swing) — interface completa, integração com a PokeAPI, IA do Bot |
+| `ui/CartaVisual.java` | Desenho de uma carta na tela (herda de `JButton` e sobrescreve `paintComponent`) |
 | `fabrica/CartaPokemonFactory.java` | **Factory Method** — ponto único de criação de `CartaPokemon` (PokeAPI, times fixos e clonagem) |
 | `efeitos/EfeitoTreinador.java` | **Strategy** — interface do efeito de uma carta de treinador |
 | `efeitos/EfeitoPocao.java`, `EfeitoCuraTotal.java`, `EfeitoTroca.java`, `EfeitoEvolucaoRapida.java`, `EfeitoNenhum.java` | Estratégias concretas de cada efeito de treinador |
@@ -137,6 +147,17 @@ Agora, `CartaPokemonFactory` centraliza essa criação em três métodos (`criar
 
 ---
 
+## 🖌️ Como a `CartaVisual` funciona
+
+`CartaVisual` é uma subclasse de `JButton` que **sobrescreve `paintComponent`** e desenha a carta inteira com `Graphics2D` (formas, gradiente, textos e a imagem do Pokémon), sem usar HTML nem imagens de fundo.
+
+- **Herança**: por ser um `JButton`, ela continua aceitando `addActionListener`, `setEnabled` e `setToolTipText`. Por isso o `AppGUI` só precisou trocar `new JButton(...)` por `new CartaVisual(carta, sprite)` — os cliques e as regras do jogo não mudaram.
+- **Polimorfismo**: a mesma classe desenha layouts diferentes conforme o tipo da carta (`CartaPokemon`, `CartaTreinador` ou `CartaEnergia`), usando `instanceof`.
+- **Separação de responsabilidades**: todo o código de desenho fica na `CartaVisual`, então o `AppGUI` não cresceu (ficou até menor, porque as linhas de estilização dos botões antigos saíram).
+- Os sprites da PokeAPI têm muita margem transparente; a classe recorta essa margem (com cache) e amplia a imagem sem borrar, para a pixel art ficar nítida.
+
+---
+
 ## 🌐 Integração com a PokeAPI
 
 O jogo consome a [PokeAPI](https://pokeapi.co/) para:
@@ -151,4 +172,4 @@ Como não usamos nenhuma biblioteca de JSON, a extração dos dados é feita com
 
 ## 📌 Status
 
-Projeto em desenvolvimento ativo — feito em conversas incrementais, adicionando uma funcionalidade de cada vez.
+Projeto em desenvolvimento ativo — feito em conversas incrementais, adicionando uma funcionalidade de cada vez. As últimas etapas organizaram o código em pacotes, aplicaram os padrões Strategy e Factory Method e trouxeram o novo visual das cartas com a classe `CartaVisual`.
