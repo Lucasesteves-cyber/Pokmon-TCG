@@ -6,7 +6,7 @@ import modelo.Jogador;
 /** Efeito da carta "Poção": cura 30 de HP de um Pokémon em campo. */
 public class EfeitoPocao implements EfeitoTreinador {
 
-    private static final int CURA = 30;
+    private static final int CURA = 40;
 
     @Override
     public String getNome() { return "Poção"; }

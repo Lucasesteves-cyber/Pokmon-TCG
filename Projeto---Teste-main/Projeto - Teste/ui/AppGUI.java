@@ -221,8 +221,10 @@ public class AppGUI {
         for (int i = 0; i < 6; i++) jogador1.comprarCarta();
         for (int i = 0; i < 6; i++) jogador2.comprarCarta();
 
-        jogadorAtual = jogador1;
-        adversario = jogador2;
+        // Cara ou Coroa decide quem joga o primeiro turno (regra oficial do TCG).
+        boolean jogador1Comeca = SorteioMoeda.sortearQuemComeca(jogador1.getNome(), jogador2.getNome());
+        jogadorAtual = jogador1Comeca ? jogador1 : jogador2;
+        adversario = jogador1Comeca ? jogador2 : jogador1;
         jogador1PrimeiroTurno = true;
         jogador2PrimeiroTurno = true;
         numeroTurno = 1;
@@ -237,6 +239,7 @@ public class AppGUI {
 
         frame.setVisible(true);
 
+        System.out.println("Cara ou Coroa: " + jogadorAtual.getNome() + " começa a partida!");
         iniciarTurno();
     }
 
