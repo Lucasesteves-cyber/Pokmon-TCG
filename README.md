@@ -17,7 +17,7 @@ Projeto - Teste/
 │                 EfeitoEvolucaoRapida, EfeitoNenhum, EfeitoTreinadorRegistro,
 │                 TipoAlvo, ParametrosEfeito
 ├── fabrica/    → CartaPokemonFactory
-└── ui/         → AppGUI, App, CartaVisual
+└── ui/         → AppGUI, App, CartaVisual, SorteioMoeda
 ```
 
 ## 🎮 Como rodar
@@ -25,21 +25,23 @@ Projeto - Teste/
 Pré-requisitos: **JDK 17+** instalado. Rode os comandos a partir da pasta `Projeto - Teste` (a que contém as pastas `modelo/`, `efeitos/`, `fabrica/` e `ui/`).
 
 ```bash
-javac -encoding UTF-8 modelo/*.java efeitos/*.java fabrica/*.java ui/*.java
-java ui.AppGUI
+javac -encoding UTF-8 -d bin modelo/*.java efeitos/*.java fabrica/*.java ui/*.java
+java -cp bin ui.AppGUI
 ```
+
+O `-d bin` faz o `javac` colocar os arquivos compilados (`.class`) na pasta `bin`, separados do código-fonte. Por isso o `java` precisa do `-cp bin`, que diz onde procurar as classes. A pasta `bin` não vai para o GitHub.
 
 > ⚠️ O `-encoding UTF-8` é obrigatório — sem ele, os acentos podem aparecer corrompidos dependendo da configuração do Windows.
 >
-> ⚠️ Se depois de alterar o código o jogo continuar igual, apague os `.class` antigos (e a pasta `bin`, se existir) e compile de novo — quando a compilação falha, o `java` roda a versão velha que ficou compilada.
+> ⚠️ Sempre que alterar algum `.java`, rode o `javac` de novo. Se o jogo continuar igual, apague a pasta `bin` (`Remove-Item -Recurse bin` no PowerShell) e compile de novo — quando a compilação falha, o `java` roda a versão velha que ficou compilada.
 >
 > ⚠️ Como as classes agora estão em pacotes, o comando para rodar mudou de `java AppGUI` para **`java ui.AppGUI`** (com o nome do pacote na frente).
 
 Também existe uma versão simplificada em **terminal** (`App.java`), mantida como o protótipo original:
 
 ```bash
-javac -encoding UTF-8 modelo/*.java efeitos/*.java fabrica/*.java ui/*.java
-java ui.App
+javac -encoding UTF-8 -d bin modelo/*.java efeitos/*.java fabrica/*.java ui/*.java
+java -cp bin ui.App
 ```
 
 A versão gráfica (`AppGUI`) é a recomendada — tem todas as funcionalidades mais recentes.
@@ -68,7 +70,11 @@ O baralho segue a regra oficial de cópias: até **4 cópias** de um Pokémon B�
 
 ## ⚔️ Mecânicas implementadas
 
-O jogo segue (com algumas simplificações) a estrutura oficial de turno do TCG:
+O jogo segue (com algumas simplificações) a estrutura oficial de turno do TCG.
+
+**Quem começa:** antes de cada partida, um **cara ou coroa** decide quem joga o primeiro turno, como no TCG oficial. O Jogador 1 escolhe o lado da moeda; se acertar, ele começa, se errar, o adversário (ou o Bot) começa. Quem abre a partida não pode atacar nem evoluir no primeiro turno (as duas ações só valem a partir do Turno 2 da partida). Nenhum dos dois jogadores compra carta no seu primeiro turno, porque ambos já começam com 6 cartas na mão.
+
+Em cada turno:
 
 1. **Compra obrigatória** — 1 carta por turno; baralho vazio = derrota imediata.
 2. **Ações livres** (sem limite de vezes, exceto onde indicado):
@@ -104,6 +110,7 @@ O jogo segue (com algumas simplificações) a estrutura oficial de turno do TCG:
 - Ilustrações reais dos Pokémon, carregadas da PokeAPI (com cache e carregamento em segundo plano, sem travar a tela).
 - Notificações do tipo "toast" no canto da tela pra cada evento do jogo (substituem o log fixo, que agora fica disponível sob demanda no botão "Ver Histórico").
 - Efeito visual de flash ao atacar.
+- **Tela de Cara ou Coroa** antes de cada partida, com uma moeda animada que gira e pula (Pokébola de um lado, estrela dourada do outro), desenhada pela classe `SorteioMoeda`.
 - Telas de abertura estilizadas: seleção de modo, nome do treinador e escolha de time, todas com uma Pokébola desenhada vetorialmente (sem depender de imagem externa) e Pokémon desfocados ao fundo.
 
 ---
@@ -120,6 +127,7 @@ O jogo segue (com algumas simplificações) a estrutura oficial de turno do TCG:
 | `ui/App.java` | Versão em terminal (Scanner) — protótipo original |
 | `ui/AppGUI.java` | Versão gráfica (Swing) — interface completa, integração com a PokeAPI, IA do Bot |
 | `ui/CartaVisual.java` | Desenho de uma carta na tela (herda de `JButton` e sobrescreve `paintComponent`) |
+| `ui/SorteioMoeda.java` | Tela de Cara ou Coroa que decide quem começa a partida (herda de `JDialog`) |
 | `fabrica/CartaPokemonFactory.java` | **Factory Method** — ponto único de criação de `CartaPokemon` (PokeAPI, times fixos e clonagem) |
 | `efeitos/EfeitoTreinador.java` | **Strategy** — interface do efeito de uma carta de treinador |
 | `efeitos/EfeitoPocao.java`, `EfeitoCuraTotal.java`, `EfeitoTroca.java`, `EfeitoEvolucaoRapida.java`, `EfeitoNenhum.java` | Estratégias concretas de cada efeito de treinador |
@@ -158,6 +166,19 @@ Agora, `CartaPokemonFactory` centraliza essa criação em três métodos (`criar
 
 ---
 
+## 🪙 Como o `SorteioMoeda` funciona
+
+`SorteioMoeda` é uma subclasse de `JDialog` com um único método público, `sortearQuemComeca(nome1, nome2)`, que abre a tela e devolve `true` se o Jogador 1 começa.
+
+- **Onde é chamado**: no `iniciarPartida` do `AppGUI`, logo antes do primeiro turno. O resultado define quem é o `jogadorAtual` e quem é o `adversario`. Como o "Jogar novamente" também passa pelo `iniciarPartida`, toda revanche tem um sorteio novo.
+- **Sorteio**: `Random.nextBoolean()` decide se deu cara ou coroa. O Jogador 1 começa se o lado escolhido for igual ao sorteado.
+- **Animação**: um `javax.swing.Timer` redesenha a moeda a cada 16 ms (cerca de 60 quadros por segundo) por 1,8 s. Em cada quadro, a largura da moeda é multiplicada por `|cos(ângulo)|`, o que dá a impressão de que ela gira; o sinal do cosseno decide qual face aparece. O ângulo final é calculado para a moeda parar exatamente na face sorteada, e uma curva de desaceleração faz ela girar rápido no começo e devagar no fim.
+- **Diálogo modal**: o `setVisible(true)` de um `JDialog` modal só retorna quando a tela é fechada (`dispose()`), então o `AppGUI` simplesmente espera o resultado, sem precisar de callbacks.
+- **Encapsulamento**: o construtor é `private`; o único jeito de usar a classe é pelo método estático, e o `AppGUI` só recebe um `boolean`, sem saber nada da animação.
+- As duas faces são desenhadas com `Graphics2D` (sem imagens nem emojis), para funcionar igual em qualquer computador.
+
+---
+
 ## 🌐 Integração com a PokeAPI
 
 O jogo consome a [PokeAPI](https://pokeapi.co/) para:
@@ -172,4 +193,4 @@ Como não usamos nenhuma biblioteca de JSON, a extração dos dados é feita com
 
 ## 📌 Status
 
-Projeto em desenvolvimento ativo — feito em conversas incrementais, adicionando uma funcionalidade de cada vez. As últimas etapas organizaram o código em pacotes, aplicaram os padrões Strategy e Factory Method e trouxeram o novo visual das cartas com a classe `CartaVisual`.
+Projeto em desenvolvimento ativo — feito em conversas incrementais, adicionando uma funcionalidade de cada vez.
