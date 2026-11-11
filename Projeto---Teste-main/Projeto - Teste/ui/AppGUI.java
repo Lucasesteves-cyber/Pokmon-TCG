@@ -1819,13 +1819,21 @@ public class AppGUI {
     private void mostrarNotificacao(String texto) {
         if (frame == null || !frame.isShowing()) return;
 
-        JLabel toast = criarToast(texto, null);
-        if (toast.getPreferredSize().width > LARGURA_MAXIMA_TOAST) {
-            // Texto longo: fixa a largura para o HTML quebrar a linha e calcular a altura certa.
-            toast = criarToast(texto, LARGURA_MAXIMA_TOAST - 24);
-        }
+        JLabel toast = criarToast(texto);
         Dimension tamanho = toast.getPreferredSize();
-        toast.setSize(Math.min(LARGURA_MAXIMA_TOAST, Math.max(220, tamanho.width + 16)), Math.max(36, tamanho.height + 8));
+        int largura = Math.max(220, tamanho.width + 16);
+        int altura = Math.max(36, tamanho.height + 8);
+        if (largura > LARGURA_MAXIMA_TOAST) {
+            // Texto longo: pede ao renderizador de HTML do Swing a altura necessária
+            // para caber na largura máxima, assim a mensagem quebra em várias linhas.
+            largura = LARGURA_MAXIMA_TOAST;
+            javax.swing.text.View visao = (javax.swing.text.View) toast.getClientProperty(javax.swing.plaf.basic.BasicHTML.propertyKey);
+            if (visao != null) {
+                visao.setSize(largura - 4, 0);
+                altura = Math.max(36, (int) Math.ceil(visao.getPreferredSpan(javax.swing.text.View.Y_AXIS)) + 8);
+            }
+        }
+        toast.setSize(largura, altura);
 
         flashPane.add(toast);
         flashPane.setComponentZOrder(toast, 0);
@@ -1846,11 +1854,10 @@ public class AppGUI {
         timer.start();
     }
 
-    private JLabel criarToast(String texto, Integer larguraTexto) {
-        String estilo = "padding:4px 8px;" + (larguraTexto != null ? " width:" + larguraTexto + "px;" : "");
-        JLabel toast = new JLabel("<html><div style='" + estilo + "'>" + texto + "</div></html>");
+    private JLabel criarToast(String texto) {
+        JLabel toast = new JLabel("<html><div style='padding:4px 8px'>" + texto + "</div></html>");
         toast.setOpaque(true);
-        toast.setBackground(new Color(33, 33, 66, 235));
+        toast.setBackground(new Color(33, 33, 66)); // cor sólida: fundo translúcido em componente opaco deixa "fantasmas" na tela
         toast.setForeground(Color.WHITE);
         toast.setFont(new Font("Segoe UI", Font.BOLD, 13));
         toast.setBorder(BorderFactory.createLineBorder(new Color(255, 255, 255, 90), 1));
