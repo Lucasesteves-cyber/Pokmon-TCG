@@ -1,5 +1,6 @@
 package efeitos;
 
+import excecoes.JogadaInvalidaException;
 import modelo.Jogador;
 
 /**
@@ -16,7 +17,7 @@ import modelo.Jogador;
  * <p>Com o Strategy, cada efeito passa a ser uma classe própria que
  * implementa esta interface, e tanto o {@link Jogador} quanto a interface
  * gráfica tratam qualquer carta de treinador de forma uniforme, chamando
- * {@code carta.getEfeito().aplicar(...)} — sem precisar saber, em tempo de
+ * {@code carta.getEstrategia().aplicar(...)} — sem precisar saber, em tempo de
  * compilação, qual efeito específico está sendo executado. Isso torna fácil
  * adicionar um novo efeito de treinador no futuro sem alterar nenhum
  * código existente (apenas criando uma nova classe e registrando-a em
@@ -24,13 +25,13 @@ import modelo.Jogador;
  */
 public interface EfeitoTreinador {
 
-    /** Nome de exibição do efeito (usado em telas e no baralho). */
+    /** @return nome de exibição do efeito (usado em telas e no baralho) */
     String getNome();
 
-    /** Tipo de alvo que a interface precisa coletar do jogador antes de chamar {@link #aplicar}. */
+    /** @return tipo de alvo que a interface precisa coletar do jogador antes de chamar {@link #aplicar} */
     TipoAlvo getTipoAlvoNecessario();
 
-    /** Texto exibido ao jogador ao pedir o alvo (ignorado quando {@link #getTipoAlvoNecessario()} é {@code NENHUM}). */
+    /** @return texto exibido ao jogador ao pedir o alvo (ignorado quando {@link #getTipoAlvoNecessario()} é {@code NENHUM}) */
     default String getTextoSelecaoAlvo() {
         return "Escolha o alvo:";
     }
@@ -41,7 +42,7 @@ public interface EfeitoTreinador {
      * @param jogador      jogador que está usando a carta
      * @param indiceNaMao  posição da carta de treinador na mão do jogador
      * @param parametros   alvo(s) já coletados pela interface gráfica
-     * @return {@code true} se o efeito foi aplicado com sucesso (e a carta consumida)
+     * @throws JogadaInvalidaException se o efeito não puder ser aplicado (nesse caso a carta continua na mão)
      */
-    boolean aplicar(Jogador jogador, int indiceNaMao, ParametrosEfeito parametros);
-}
+    void aplicar(Jogador jogador, int indiceNaMao, ParametrosEfeito parametros);
+}

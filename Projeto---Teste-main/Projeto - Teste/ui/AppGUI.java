@@ -3,22 +3,35 @@ package ui;
 import efeitos.EfeitoTreinador;
 import efeitos.ParametrosEfeito;
 import efeitos.TipoAlvo;
+import eventos.EventoJogo;
+import eventos.TipoEvento;
+import excecoes.BaralhoVazioException;
+import excecoes.JogadaInvalidaException;
+import excecoes.PersistenciaException;
+import excecoes.PokeApiException;
+import fabrica.BaralhosPadrao;
 import fabrica.CartaPokemonFactory;
+import fabrica.TimeFixo;
 import modelo.Carta;
 import modelo.CartaPokemon;
 import modelo.CartaTreinador;
 import modelo.Jogador;
+import persistencia.HistoricoPartidas;
+import persistencia.ResultadoPartida;
+import servicos.PokeApiCliente;
 
 import javax.swing.*;
 import javax.imageio.ImageIO;
 import java.awt.event.ActionListener;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.net.HttpURLConnection;
-import java.io.*;
+import java.io.IOException;
+import java.net.URI;
+import java.time.LocalDateTime;
 import java.awt.*;
 import java.awt.image.*;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Interface gráfica (Swing) do Pokémon TCG — é o "coração" do projeto,
@@ -30,6 +43,12 @@ import java.util.List;
  * {@link CartaPokemon} e nas estratégias de {@link EfeitoTreinador}. A
  * criação de cartas de Pokémon (tanto vindas da PokeAPI quanto dos times
  * fixos) é sempre feita através de {@link CartaPokemonFactory}.</p>
+ *
+ * <p>Tudo o que acontece na partida chega aqui como {@link EventoJogo}: a
+ * interface se inscreve como ouvinte (padrão <b>Observer</b>) dos dois
+ * jogadores e mostra cada evento como notificação e no histórico. Jogadas
+ * inválidas chegam como {@link JogadaInvalidaException} e são exibidas num
+ * único ponto, {@link #executarJogada(Runnable)}.</p>
  */
 public class AppGUI {
 
@@ -68,6 +87,11 @@ public class AppGUI {
     private static final Color COR_BANNER = new Color(33, 33, 66);
 
     private static final int LIMITE_BARALHO = 40;
+    private static final int TAMANHO_MAO_INICIAL = 6;
+    private static final String URL_SPRITES = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/";
+
+    private final PokeApiCliente pokeApi = new PokeApiCliente();
+    private final HistoricoPartidas historico = new HistoricoPartidas();
 
     private final java.util.Map<String, ImageIcon> cacheSprites = new java.util.HashMap<>();
     private final java.util.Set<String> chavesCarregandoAgora = new java.util.HashSet<>();
@@ -119,18 +143,26 @@ public class AppGUI {
     }
 
     private static final String VERSAO_BUILD = "build: Gen 1-6";
+    private static final String NOME_BOT = "Bot";
 
-    /** Ponto de entrada da versão gráfica do jogo. */
+    /**
+     * Ponto de entrada da versão gráfica do jogo.
+     *
+     * @param args não utilizado
+     */
     public static void main(String[] args) {
 
         try {
             UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
-        } catch (Exception e) {
-
+        } catch (ReflectiveOperationException | UnsupportedLookAndFeelException e) {
+            // Não é grave: o Swing continua com o tema do sistema operacional.
+            System.err.println("Não foi possível aplicar o tema padrão do Swing: " + e.getMessage());
         }
 
         SwingUtilities.invokeLater(() -> new AppGUI().iniciar());
     }
+
+    private AppGUI() { }
 
     private String nomeJogador1Salvo;
     private String nomeJogador2Salvo;
@@ -144,37 +176,32 @@ public class AppGUI {
      * escolhas feitas pelo(s) jogador(es).
      */
     private void iniciar() {
+        modoSoloSalvo = escolherModoDialog();
+        Set<TimeFixo> timesDisponiveis = EnumSet.allOf(TimeFixo.class);
 
-        boolean modoSolo = escolherModoDialog();
-        modoSoloSalvo = modoSolo;
+        nomeJogador1Salvo = pedirNomeEstilizado("Digite o seu nome de Treinador:", "Treinador 1");
+        composicaoJogador1 = montarComposicao(nomeJogador1Salvo, timesDisponiveis, false);
 
-        boolean[] timesDisponiveis = { true, true, true };
+        nomeJogador2Salvo = modoSoloSalvo ? NOME_BOT : pedirNomeEstilizado("Digite o nome do Treinador 2:", "Treinador 2");
+        composicaoJogador2 = montarComposicao(nomeJogador2Salvo, timesDisponiveis, modoSoloSalvo);
 
-        String nome1 = pedirNomeEstilizado("Digite o seu nome de Treinador:", "Treinador 1");
-        Jogador jog1Temp = new Jogador(nome1);
-        escolherTimeDialog(jog1Temp, timesDisponiveis);
-        List<CartaPokemon> composicao1 = capturarComposicao(jog1Temp);
+        reiniciarComMesmaEquipe();
+    }
 
-        Jogador jog2Temp;
-        List<CartaPokemon> composicao2;
-
-        if (modoSolo) {
-            jog2Temp = new Jogador("Bot");
-            construirTimeAleatorioBotComLoading(jog2Temp);
-            composicao2 = capturarComposicao(jog2Temp);
+    /**
+     * Monta o time de um jogador: pela tela de escolha (time fixo ou customizado)
+     * ou, no caso do Bot, sorteando Pokémon na PokeAPI.
+     *
+     * @return cópias das cartas de Pokémon escolhidas (sem as cartas de treinador)
+     */
+    private List<CartaPokemon> montarComposicao(String nome, Set<TimeFixo> timesDisponiveis, boolean ehBot) {
+        Jogador temporario = new Jogador(nome);
+        if (ehBot) {
+            construirTimeAleatorioBotComLoading(temporario);
         } else {
-            String nome2 = pedirNomeEstilizado("Digite o nome do Treinador 2:", "Treinador 2");
-            jog2Temp = new Jogador(nome2);
-            escolherTimeDialog(jog2Temp, timesDisponiveis);
-            composicao2 = capturarComposicao(jog2Temp);
+            escolherTimeDialog(temporario, timesDisponiveis);
         }
-
-        nomeJogador1Salvo = jog1Temp.getNome();
-        nomeJogador2Salvo = jog2Temp.getNome();
-        composicaoJogador1 = composicao1;
-        composicaoJogador2 = composicao2;
-
-        iniciarPartida(nomeJogador1Salvo, composicao1, nomeJogador2Salvo, composicao2, modoSolo);
+        return capturarComposicao(temporario);
     }
 
     private List<CartaPokemon> capturarComposicao(Jogador jogador) {
@@ -208,18 +235,12 @@ public class AppGUI {
         jogador2 = construirJogadorFresco(nome2, composicao2);
         jogadorBot = modoSolo ? jogador2 : null;
 
-        App.adicionarCartasTreinador(jogador1);
-        App.adicionarCartasTreinador(jogador2);
-
-        jogador1.getPremios().add(new CartaTreinador("Troféu", "Troféu"));
-        jogador1.getPremios().add(new CartaTreinador("Troféu", "Troféu"));
-        jogador2.getPremios().add(new CartaTreinador("Troféu", "Troféu"));
-        jogador2.getPremios().add(new CartaTreinador("Troféu", "Troféu"));
-
-        jogador1.verificarBaralho();
-        jogador2.verificarBaralho();
-        for (int i = 0; i < 6; i++) jogador1.comprarCarta();
-        for (int i = 0; i < 6; i++) jogador2.comprarCarta();
+        for (Jogador jogador : List.of(jogador1, jogador2)) {
+            BaralhosPadrao.adicionarCartasTreinador(jogador);
+            BaralhosPadrao.adicionarPremios(jogador);
+            jogador.embaralhar();
+            for (int i = 0; i < TAMANHO_MAO_INICIAL; i++) jogador.comprarCarta();
+        }
 
         // Cara ou Coroa decide quem joga o primeiro turno (regra oficial do TCG).
         boolean jogador1Comeca = SorteioMoeda.sortearQuemComeca(jogador1.getNome(), jogador2.getNome());
@@ -232,14 +253,17 @@ public class AppGUI {
 
         if (frame == null) {
             montarJanela();
-            redirecionarConsoleParaLog();
         } else {
             logArea.setText("");
         }
 
+        // Observer: a interface passa a ouvir os eventos dos dois jogadores desta partida.
+        jogador1.adicionarOuvinte(this::aoEventoDoJogo);
+        jogador2.adicionarOuvinte(this::aoEventoDoJogo);
+
         frame.setVisible(true);
 
-        System.out.println("Cara ou Coroa: " + jogadorAtual.getNome() + " começa a partida!");
+        registrarMensagem("Cara ou Coroa: " + jogadorAtual.getNome() + " começa a partida!");
         iniciarTurno();
     }
 
@@ -248,31 +272,10 @@ public class AppGUI {
     }
 
     private void reiniciarTrocandoEquipe() {
-        boolean[] timesDisponiveis = { true, true, true };
-
-        Jogador jog1Temp = new Jogador(nomeJogador1Salvo);
-        escolherTimeDialog(jog1Temp, timesDisponiveis);
-        List<CartaPokemon> composicao1 = capturarComposicao(jog1Temp);
-
-        Jogador jog2Temp;
-        List<CartaPokemon> composicao2;
-
-        if (modoSoloSalvo) {
-            jog2Temp = new Jogador("Bot");
-            construirTimeAleatorioBotComLoading(jog2Temp);
-            composicao2 = capturarComposicao(jog2Temp);
-        } else {
-            jog2Temp = new Jogador(nomeJogador2Salvo);
-            escolherTimeDialog(jog2Temp, timesDisponiveis);
-            composicao2 = capturarComposicao(jog2Temp);
-        }
-
-        nomeJogador1Salvo = jog1Temp.getNome();
-        nomeJogador2Salvo = jog2Temp.getNome();
-        composicaoJogador1 = composicao1;
-        composicaoJogador2 = composicao2;
-
-        iniciarPartida(nomeJogador1Salvo, composicao1, nomeJogador2Salvo, composicao2, modoSoloSalvo);
+        Set<TimeFixo> timesDisponiveis = EnumSet.allOf(TimeFixo.class);
+        composicaoJogador1 = montarComposicao(nomeJogador1Salvo, timesDisponiveis, false);
+        composicaoJogador2 = montarComposicao(nomeJogador2Salvo, timesDisponiveis, modoSoloSalvo);
+        reiniciarComMesmaEquipe();
     }
 
     private Image imagemMenuCharizard;
@@ -528,9 +531,9 @@ public class AppGUI {
 
     private void carregarImagensMenu(JPanel painelParaRepintar) {
         new Thread(() -> {
-            BufferedImage charizard = baixarImagemBuffered("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png");
-            BufferedImage blastoise = baixarImagemBuffered("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/9.png");
-            BufferedImage venusaur = baixarImagemBuffered("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/3.png");
+            BufferedImage charizard = baixarImagemBuffered(URL_SPRITES + "other/official-artwork/6.png");
+            BufferedImage blastoise = baixarImagemBuffered(URL_SPRITES + "other/official-artwork/9.png");
+            BufferedImage venusaur = baixarImagemBuffered(URL_SPRITES + "other/official-artwork/3.png");
 
             Image charizardDesfocado = charizard != null ? aplicarDesfoque(charizard, 8) : null;
             Image blastoiseDesfocado = blastoise != null ? aplicarDesfoque(blastoise, 8) : null;
@@ -545,12 +548,24 @@ public class AppGUI {
         }).start();
     }
 
-    private BufferedImage baixarImagemBuffered(String url) {
+    /**
+     * Baixa uma imagem da internet. Sem conexão o jogo continua normalmente,
+     * apenas sem a ilustração, por isso a falha é registrada e devolve {@code null}.
+     */
+    private static BufferedImage baixarImagemBuffered(String url) {
         try {
-            return ImageIO.read(java.net.URI.create(url).toURL());
-        } catch (Exception e) {
+            return ImageIO.read(URI.create(url).toURL());
+        } catch (IOException e) {
+            System.err.println("Imagem indisponível (" + url + "): " + e.getMessage());
             return null;
         }
+    }
+
+    /** Baixa o sprite oficial de um Pokémon já redimensionado, ou {@code null} se não estiver disponível. */
+    private static ImageIcon baixarSprite(int numeroDex, int tamanho) {
+        BufferedImage imagem = baixarImagemBuffered(URL_SPRITES + numeroDex + ".png");
+        if (imagem == null) return null;
+        return new ImageIcon(imagem.getScaledInstance(tamanho, tamanho, java.awt.Image.SCALE_SMOOTH));
     }
 
     private void construirTimeAleatorioBotComLoading(Jogador bot) {
@@ -587,10 +602,15 @@ public class AppGUI {
         java.util.Random sorteio = new java.util.Random();
 
         for (int i = 0; i < TOTAL_TENTATIVAS; i++) {
-            final int numeroDex = 1 + sorteio.nextInt(721);
+            final int numeroDex = 1 + sorteio.nextInt(PokeApiCliente.ULTIMO_NUMERO_DEX);
             executor.submit(() -> {
-                CartaPokemon carta = buscarPokemon(numeroDex);
-                resultados.offer(carta != null ? carta : CARTA_FALHA_SORTEIO);
+                try {
+                    resultados.offer(pokeApi.buscarPokemon(numeroDex));
+                } catch (PokeApiException e) {
+                    // Um Pokémon que falhou não impede o sorteio: o Bot só tenta o próximo.
+                    System.err.println("Bot pulou o Pokémon #" + numeroDex + ": " + e.getMessage());
+                    resultados.offer(CARTA_FALHA_SORTEIO);
+                }
             });
         }
         executor.shutdown();
@@ -628,7 +648,8 @@ public class AppGUI {
      * Exibe a tela de montagem de time (fixo ou customizado via PokeAPI) e
      * popula o baralho do jogador informado com a composição escolhida.
      */
-    private void escolherTimeDialog(Jogador jogador, boolean[] disponivel) {
+    private void escolherTimeDialog(Jogador jogador, Set<TimeFixo> disponiveis) {
+        final String CUSTOM = "CUSTOM";
         while (true) {
             final String[] escolha = { null };
             Dimension tela = Toolkit.getDefaultToolkit().getScreenSize();
@@ -654,10 +675,10 @@ public class AppGUI {
             int xBotao = (tela.width - larguraBotao) / 2;
 
             java.util.List<String[]> opcoes = new java.util.ArrayList<>();
-            if (disponivel[0]) opcoes.add(new String[]{"\uD83D\uDCA7 Água", "AGUA"});
-            if (disponivel[1]) opcoes.add(new String[]{"\uD83D\uDD25 Fogo", "FOGO"});
-            if (disponivel[2]) opcoes.add(new String[]{"\uD83C\uDF3F Planta", "PLANTA"});
-            opcoes.add(new String[]{"\uD83C\uDF0D Montar Time Customizado (Gen 1 a 6)", "CUSTOM"});
+            for (TimeFixo time : disponiveis) {
+                opcoes.add(new String[]{time.getEmoji() + " " + time.getNome(), time.name()});
+            }
+            opcoes.add(new String[]{"\uD83C\uDF0D Montar Time Customizado (Gen 1 a 6)", CUSTOM});
 
             int yAtual = tela.height / 2 - 180;
             for (String[] opcao : opcoes) {
@@ -677,21 +698,13 @@ public class AppGUI {
 
             if (escolha[0] == null) continue;
 
-            if (escolha[0].equals("AGUA")) {
-                App.adicionarTimeAgua(jogador);
-                disponivel[0] = false;
+            if (escolha[0].equals(CUSTOM)) {
+                if (abrirConstrutorDeTime(jogador)) return;
+            } else {
+                TimeFixo time = TimeFixo.valueOf(escolha[0]);
+                time.montar(jogador);
+                disponiveis.remove(time);
                 return;
-            } else if (escolha[0].equals("FOGO")) {
-                App.adicionarTimeFogo(jogador);
-                disponivel[1] = false;
-                return;
-            } else if (escolha[0].equals("PLANTA")) {
-                App.adicionarTimePlanta(jogador);
-                disponivel[2] = false;
-                return;
-            } else if (escolha[0].equals("CUSTOM")) {
-                boolean concluiu = abrirConstrutorDeTime(jogador);
-                if (concluiu) return;
             }
         }
     }
@@ -784,13 +797,13 @@ public class AppGUI {
 
             new Thread(() -> {
                 try {
-                    java.util.List<String> nomes = buscarNomesGeracao(offset, limite);
+                    java.util.List<String> nomes = pokeApi.buscarNomes(offset, limite);
                     SwingUtilities.invokeLater(() -> {
-                        for (String n : nomes) modeloLista.addElement(capitalizar(n));
+                        for (String n : nomes) modeloLista.addElement(n);
                         statusLabel.setText("✅ " + nomes.size() + " Pokémon carregados. Selecione um e clique em Adicionar.");
                     });
-                } catch (Exception ex) {
-                    SwingUtilities.invokeLater(() -> statusLabel.setText("❌ Erro ao carregar (verifique sua internet)."));
+                } catch (PokeApiException ex) {
+                    SwingUtilities.invokeLater(() -> statusLabel.setText("❌ " + ex.getMessage()));
                 }
             }).start();
         };
@@ -820,13 +833,17 @@ public class AppGUI {
             statusLabel.setText("⏳ Buscando linha evolutiva completa...");
 
             new Thread(() -> {
-                java.util.List<CartaPokemon> linhaCompleta = buscarLinhaCompleta(numeroDex);
-                SwingUtilities.invokeLater(() -> {
-                    if (linhaCompleta.isEmpty()) {
+                java.util.List<CartaPokemon> linhaCompleta;
+                try {
+                    linhaCompleta = pokeApi.buscarLinhaEvolutiva(numeroDex);
+                } catch (PokeApiException ex) {
+                    SwingUtilities.invokeLater(() -> {
                         btnAdicionar.setEnabled(true);
-                        statusLabel.setText("❌ Erro ao buscar esse Pokémon. Tenta de novo.");
-                        return;
-                    }
+                        statusLabel.setText("❌ " + ex.getMessage());
+                    });
+                    return;
+                }
+                SwingUtilities.invokeLater(() -> {
 
                     StringBuilder resumo = new StringBuilder();
                     for (CartaPokemon carta : linhaCompleta) {
@@ -897,113 +914,6 @@ public class AppGUI {
         return concluiuComSucesso[0];
     }
 
-    private java.util.List<String> buscarNomesGeracao(int offset, int limite) throws Exception {
-        String json = fetchUrl("https://pokeapi.co/api/v2/pokemon?offset=" + offset + "&limit=" + limite);
-        java.util.List<String> nomes = new java.util.ArrayList<>();
-        Matcher m = Pattern.compile("\"name\":\"([a-z0-9\\-]+)\"").matcher(json);
-        while (m.find()) nomes.add(m.group(1));
-        return nomes;
-    }
-
-    /**
-     * Busca na PokeAPI os dados de um Pokémon pelo número da Pokédex e
-     * constrói a carta correspondente através de {@link CartaPokemonFactory#criarDaPokeAPI}.
-     * @return a carta criada, ou {@code null} se a busca falhar
-     */
-    private CartaPokemon buscarPokemon(int numeroDex) {
-        try {
-            String jsonPokemon = fetchUrl("https://pokeapi.co/api/v2/pokemon/" + numeroDex);
-            String nome = capitalizar(extrairString(jsonPokemon, "name"));
-
-            Matcher tipoMatcher = Pattern.compile("\"type\":\\{\"name\":\"([a-z]+)\"").matcher(jsonPokemon);
-            String tipoIngles = tipoMatcher.find() ? tipoMatcher.group(1) : "normal";
-            String tipo = traduzirTipo(tipoIngles);
-
-            int hp = extrairStat(jsonPokemon, "hp");
-            int dano = extrairStat(jsonPokemon, "attack");
-
-            String jsonSpecies = fetchUrl("https://pokeapi.co/api/v2/pokemon-species/" + numeroDex);
-            Matcher evoMatcher = Pattern.compile("\"evolves_from_species\":\\{\"name\":\"([a-z0-9\\-]+)\"").matcher(jsonSpecies);
-            String evoluiDe = evoMatcher.find() ? capitalizar(evoMatcher.group(1)) : null;
-
-            return CartaPokemonFactory.criarDaPokeAPI(numeroDex, nome, tipo, hp, dano, evoluiDe);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private int buscarNumeroPreEvolucao(int numeroDex) {
-        try {
-            String jsonSpecies = fetchUrl("https://pokeapi.co/api/v2/pokemon-species/" + numeroDex);
-            Matcher m = Pattern.compile(
-                    "\"evolves_from_species\":\\{\"name\":\"[a-z0-9\\-]+\",\"url\":\"https://pokeapi\\.co/api/v2/pokemon-species/(\\d+)/\""
-            ).matcher(jsonSpecies);
-            if (m.find()) {
-                return Integer.parseInt(m.group(1));
-            }
-        } catch (Exception e) {
-
-        }
-        return -1;
-    }
-
-    private java.util.List<CartaPokemon> buscarLinhaCompleta(int numeroDexEscolhido) {
-        java.util.List<CartaPokemon> cadeia = new java.util.ArrayList<>();
-        java.util.List<Integer> numerosJaVistos = new java.util.ArrayList<>();
-
-        int numeroAtual = numeroDexEscolhido;
-        while (numeroAtual != -1 && !numerosJaVistos.contains(numeroAtual)) {
-            numerosJaVistos.add(numeroAtual);
-
-            CartaPokemon carta = buscarPokemon(numeroAtual);
-            if (carta == null) break;
-
-            cadeia.add(0, carta);
-            numeroAtual = buscarNumeroPreEvolucao(numeroAtual);
-        }
-
-        return cadeia;
-    }
-
-    private int extrairStat(String json, String nomeStat) {
-        Matcher m = Pattern.compile("\"base_stat\":(\\d+),\"effort\":\\d+,\"stat\":\\{\"name\":\"" + nomeStat + "\"").matcher(json);
-        return m.find() ? Integer.parseInt(m.group(1)) : 0;
-    }
-
-    private String extrairString(String json, String chave) {
-        Matcher m = Pattern.compile("\"" + chave + "\":\"([^\"]*)\"").matcher(json);
-        return m.find() ? m.group(1) : "desconhecido";
-    }
-
-    private String capitalizar(String s) {
-        if (s == null || s.isEmpty()) return s;
-        String limpo = s.replace("-", " ");
-        return limpo.substring(0, 1).toUpperCase() + limpo.substring(1);
-    }
-
-    private String traduzirTipo(String tipoIngles) {
-        switch (tipoIngles) {
-            case "water": return "Água";
-            case "fire": return "Fogo";
-            case "grass": return "Planta";
-            case "electric": return "Elétrico";
-            case "psychic": return "Psíquico";
-            case "ice": return "Gelo";
-            case "dragon": return "Dragão";
-            case "dark": return "Sombrio";
-            case "fairy": return "Fada";
-            case "fighting": return "Lutador";
-            case "flying": return "Voador";
-            case "poison": return "Veneno";
-            case "ground": return "Terra";
-            case "rock": return "Pedra";
-            case "bug": return "Inseto";
-            case "ghost": return "Fantasma";
-            case "steel": return "Aço";
-            default: return "Normal";
-        }
-    }
-
     private String emojiDoTipo(String tipo) {
         switch (tipo) {
             case "Água": return "\uD83D\uDCA7";
@@ -1026,20 +936,6 @@ public class AppGUI {
             case "Normal": return "\u2B50";
             default: return "\u2754";
         }
-    }
-
-    private String fetchUrl(String urlStr) throws Exception {
-        java.net.URL url = java.net.URI.create(urlStr).toURL();
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("GET");
-        conn.setConnectTimeout(8000);
-        conn.setReadTimeout(8000);
-        StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"))) {
-            String linha;
-            while ((linha = reader.readLine()) != null) sb.append(linha);
-        }
-        return sb.toString();
     }
 
     /** Monta a janela principal do tabuleiro de batalha (chamada apenas uma vez, na primeira partida). */
@@ -1209,17 +1105,7 @@ public class AppGUI {
             final int numeroFinal = numero;
 
             new Thread(() -> {
-                ImageIcon icone = null;
-                try {
-                    String url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" + numeroFinal + ".png";
-                    java.awt.Image imagem = ImageIO.read(java.net.URI.create(url).toURL());
-                    java.awt.Image redimensionada = imagem.getScaledInstance(96, 96, java.awt.Image.SCALE_SMOOTH);
-                    icone = new ImageIcon(redimensionada);
-                } catch (Exception e) {
-
-                }
-
-                ImageIcon iconeFinal = icone;
+                ImageIcon iconeFinal = baixarSprite(numeroFinal, 96);
                 SwingUtilities.invokeLater(() -> {
                     cacheSprites.put(chaveCache, iconeFinal);
                     chavesCarregandoAgora.remove(chaveCache);
@@ -1242,17 +1128,7 @@ public class AppGUI {
             spritesCarregandoAgora.add(numeroDex);
 
             new Thread(() -> {
-                ImageIcon icone = null;
-                try {
-                    String url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" + numeroDex + ".png";
-                    java.awt.Image imagem = ImageIO.read(java.net.URI.create(url).toURL());
-                    java.awt.Image redimensionada = imagem.getScaledInstance(32, 32, java.awt.Image.SCALE_SMOOTH);
-                    icone = new ImageIcon(redimensionada);
-                } catch (Exception e) {
-                    icone = null;
-                }
-
-                ImageIcon iconeFinal = icone;
+                ImageIcon iconeFinal = baixarSprite(numeroDex, 32);
                 SwingUtilities.invokeLater(() -> {
                     cacheSpritesPorNumero.put(numeroDex, iconeFinal);
                     spritesCarregandoAgora.remove(numeroDex);
@@ -1273,15 +1149,11 @@ public class AppGUI {
             tiposCarregandoAgora.add(numeroDex);
 
             new Thread(() -> {
-                String tipo = null;
+                String tipo;
                 try {
-                    String json = fetchUrl("https://pokeapi.co/api/v2/pokemon/" + numeroDex);
-                    Matcher m = Pattern.compile("\"type\":\\{\"name\":\"([a-z]+)\"").matcher(json);
-                    if (m.find()) {
-                        tipo = traduzirTipo(m.group(1));
-                    }
-                } catch (Exception e) {
-                    tipo = null;
+                    tipo = pokeApi.buscarTipo(numeroDex);
+                } catch (PokeApiException e) {
+                    tipo = null; // a lista continua funcionando, só sem o emoji do tipo
                 }
 
                 String tipoFinal = tipo;
@@ -1296,37 +1168,77 @@ public class AppGUI {
         return null;
     }
 
-    private void redirecionarConsoleParaLog() {
-        PrintStream logStream = new PrintStream(new OutputStream() {
-            private final StringBuilder linhaAtual = new StringBuilder();
+    /**
+     * Ouvinte (Observer) dos eventos dos dois jogadores: escreve o evento no
+     * histórico e mostra uma notificação na tela.
+     *
+     * <p>Substitui o antigo truque de redirecionar o {@code System.out} para a
+     * tela, que também quebrava acentos e emojis (convertia cada byte do UTF-8
+     * num caractere separado).</p>
+     */
+    private void aoEventoDoJogo(EventoJogo evento) {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> aoEventoDoJogo(evento));
+            return;
+        }
+        if (evento.tipo() == TipoEvento.COMPRA && ehTurnoDoBot) {
+            // Não revela ao humano qual carta o Bot comprou.
+            registrarMensagem("🤖 " + jogadorBot.getNome() + " comprou uma carta.");
+            return;
+        }
+        registrarMensagem(evento.mensagem());
+    }
 
-            @Override
-            public void write(int b) {
-                char c = (char) b;
-                logArea.append(String.valueOf(c));
-                logArea.setCaretPosition(logArea.getDocument().getLength());
+    /** Escreve uma linha no histórico da partida e mostra a mesma mensagem como notificação. */
+    private void registrarMensagem(String mensagem) {
+        if (logArea != null) {
+            logArea.append(mensagem + "\n");
+            logArea.setCaretPosition(logArea.getDocument().getLength());
+        }
+        mostrarNotificacao(mensagem);
+    }
 
-                if (c == '\n') {
-                    String linha = linhaAtual.toString().trim();
-                    linhaAtual.setLength(0);
-                    if (!linha.isEmpty()) {
-                        SwingUtilities.invokeLater(() -> mostrarNotificacao(linha));
-                    }
-                } else {
-                    linhaAtual.append(c);
-                }
-            }
-        }, true);
-        System.setOut(logStream);
+    /**
+     * Executa uma jogada do jogador humano. Se ela desrespeitar alguma regra, o
+     * {@link Jogador} lança {@link JogadaInvalidaException} e a mensagem dela é
+     * mostrada aqui — o único lugar da interface que trata esse erro.
+     *
+     * @return {@code true} se a jogada foi feita
+     */
+    private boolean executarJogada(Runnable jogada) {
+        try {
+            jogada.run();
+            return true;
+        } catch (JogadaInvalidaException e) {
+            registrarMensagem("⚠️ " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Jogada do Bot: ele tenta ações que podem não ser permitidas (ex.: evoluir
+     * no Turno 1). Nesse caso a exceção só é registrada no histórico, sem
+     * notificação, e o Bot segue para a próxima ação.
+     */
+    private boolean tentarJogadaDoBot(Runnable jogada) {
+        try {
+            jogada.run();
+            return true;
+        } catch (JogadaInvalidaException e) {
+            if (logArea != null) logArea.append("🤖 (jogada ignorada) " + e.getMessage() + "\n");
+            return false;
+        }
     }
 
     private void iniciarTurno() {
         if (!jogoAtivo) return;
 
         boolean primeiroTurno = (jogadorAtual == jogador1) ? jogador1PrimeiroTurno : jogador2PrimeiroTurno;
+        ehTurnoDoBot = (jogadorBot != null && jogadorAtual == jogadorBot);
         if (!primeiroTurno) {
-            boolean conseguiuComprar = jogadorAtual.comprarCarta();
-            if (!conseguiuComprar) {
+            try {
+                jogadorAtual.comprarCarta();
+            } catch (BaralhoVazioException e) {
                 encerrarJogoComDerrota(jogadorAtual, adversario);
                 return;
             }
@@ -1336,7 +1248,6 @@ public class AppGUI {
         }
 
         jogadorAtual.resetarEvolucoesDoTurno();
-        ehTurnoDoBot = (jogadorBot != null && jogadorAtual == jogadorBot);
         atualizarTela();
 
         if (ehTurnoDoBot) {
@@ -1355,88 +1266,70 @@ public class AppGUI {
         iniciarTurno();
     }
 
+    /**
+     * IA simples do Bot: coloca Pokémon em campo, evolui o Ativo, anexa energia
+     * e ataca se puder. Cada ação passa por {@link #tentarJogadaDoBot}.
+     */
     private void executarTurnoBot() {
         if (!jogoAtivo) return;
 
         Jogador bot = jogadorAtual;
         Jogador oponenteDoBot = adversario;
 
-        if (bot.getPokemonAtivo() == null) {
-            int indiceBasico = encontrarIndiceBasicoNaMao(bot);
-            if (indiceBasico != -1) {
-                bot.colocarPokemonEmCampo(indiceBasico, 0);
+        if (bot.getPokemonAtivo() == null && bot.indiceDoPrimeiroBasicoNaMao() != -1) {
+            tentarJogadaDoBot(() -> bot.colocarPokemonEmCampo(bot.indiceDoPrimeiroBasicoNaMao(), 0));
+        }
+
+        while (bot.indiceDoPrimeiroBasicoNaMao() != -1 && bot.getBanco().size() < Jogador.LIMITE_BANCO) {
+            if (!tentarJogadaDoBot(() -> bot.colocarPokemonEmCampo(bot.indiceDoPrimeiroBasicoNaMao(), 1))) break;
+        }
+
+        CartaPokemon ativo = bot.getPokemonAtivo();
+        if (ativo != null) {
+            List<Integer> evolucoes = bot.indicesDeEvolucoesNaMao(ativo);
+            if (!evolucoes.isEmpty()) {
+                tentarJogadaDoBot(() -> bot.evoluir(evolucoes.get(0), ativo, numeroTurno));
             }
-        }
-
-        int indiceBasico = encontrarIndiceBasicoNaMao(bot);
-        while (indiceBasico != -1 && bot.getBanco().size() < 5) {
-            bot.colocarPokemonEmCampo(indiceBasico, 1);
-            indiceBasico = encontrarIndiceBasicoNaMao(bot);
-        }
-
-        if (bot.getPokemonAtivo() != null) {
-            int indiceEvolucao = encontrarIndiceEvolucaoParaAlvo(bot, bot.getPokemonAtivo());
-            if (indiceEvolucao != -1) {
-                bot.evoluir(indiceEvolucao, bot.getPokemonAtivo(), numeroTurno);
-            }
-        }
-
-        if (bot.getPokemonAtivo() != null) {
-            bot.anexarEnergia(bot.getPokemonAtivo());
+            tentarJogadaDoBot(() -> bot.anexarEnergia(bot.getPokemonAtivo()));
         }
 
         atualizarTela();
 
-        if (bot.getPokemonAtivo() != null && bot.getPokemonAtivo().getQuantidadeEnergias() >= 1) {
-            boolean atacou = bot.atacar(oponenteDoBot, numeroTurno);
-            if (atacou) {
-                mostrarFlashDeAtaque(new Color(220, 40, 40));
+        if (bot.getPokemonAtivo() != null && bot.getPokemonAtivo().getQuantidadeEnergias() >= 1
+                && tentarJogadaDoBot(() -> bot.atacar(oponenteDoBot, numeroTurno))) {
+            mostrarFlashDeAtaque(new Color(220, 40, 40));
+            if (verificarVitoriaAposAtaque(bot, oponenteDoBot)) return;
 
-                if (bot.getPremios().isEmpty()) {
-                    jogoAtivo = false;
-                    mostrarTelaFimDeJogo(bot, oponenteDoBot, "Conquistou os 2 prêmios!");
-                    return;
-                }
-
-                if (oponenteDoBot.getPokemonAtivo() == null && oponenteDoBot.getBanco().isEmpty()) {
-                    jogoAtivo = false;
-                    mostrarTelaFimDeJogo(bot, oponenteDoBot, "Não sobrou nenhum Pokémon em campo!");
-                    return;
-                }
-
-                bot.encerrarRodada();
-                System.out.println("🤖 " + bot.getNome() + " encerrou o turno após atacar.");
-                trocarTurno();
-                return;
-            }
+            bot.encerrarRodada();
+            registrarMensagem("🤖 " + bot.getNome() + " encerrou o turno após atacar.");
+            trocarTurno();
+            return;
         }
 
         bot.encerrarRodada();
-        System.out.println("🤖 " + bot.getNome() + " passou o turno.");
+        registrarMensagem("🤖 " + bot.getNome() + " passou o turno.");
         trocarTurno();
     }
 
-    private int encontrarIndiceBasicoNaMao(Jogador jogador) {
-        List<Carta> mao = jogador.getMao();
-        for (int i = 0; i < mao.size(); i++) {
-            if (mao.get(i) instanceof CartaPokemon && ((CartaPokemon) mao.get(i)).isBasico()) {
-                return i;
-            }
+    /**
+     * Confere se o ataque que acabou de acontecer terminou a partida
+     * (atacante pegou todos os prêmios ou o defensor ficou sem Pokémon).
+     * Usado tanto pelo jogador humano quanto pelo Bot.
+     *
+     * @return {@code true} se a partida acabou
+     */
+    private boolean verificarVitoriaAposAtaque(Jogador atacante, Jogador defensor) {
+        String motivo = null;
+        if (atacante.getPremios().isEmpty()) {
+            motivo = "Conquistou os " + BaralhosPadrao.QUANTIDADE_PREMIOS + " prêmios!";
+        } else if (defensor.semPokemonEmCampo()) {
+            motivo = "Não sobrou nenhum Pokémon em campo!";
         }
-        return -1;
-    }
+        if (motivo == null) return false;
 
-    private int encontrarIndiceEvolucaoParaAlvo(Jogador jogador, CartaPokemon alvo) {
-        List<Carta> mao = jogador.getMao();
-        for (int i = 0; i < mao.size(); i++) {
-            if (mao.get(i) instanceof CartaPokemon) {
-                CartaPokemon carta = (CartaPokemon) mao.get(i);
-                if (!carta.isBasico() && carta.getEvoluiDe().equalsIgnoreCase(alvo.getNome())) {
-                    return i;
-                }
-            }
-        }
-        return -1;
+        jogoAtivo = false;
+        mostrarTelaFimDeJogo(atacante, defensor, motivo);
+        return true;
     }
 
     private void encerrarJogoComDerrota(Jogador perdedor, Jogador vencedor) {
@@ -1445,9 +1338,31 @@ public class AppGUI {
         mostrarTelaFimDeJogo(vencedor, perdedor, perdedor.getNome() + " não tinha mais cartas pra comprar!");
     }
 
+    /**
+     * Salva o resultado no arquivo de histórico e monta o texto do placar geral
+     * dos dois jogadores. Se o arquivo não puder ser lido ou gravado, a partida
+     * não é afetada: o texto devolvido explica o problema.
+     */
+    private String salvarResultadoEMontarPlacar(Jogador vencedor, Jogador perdedor, String motivo) {
+        try {
+            historico.registrar(new ResultadoPartida(LocalDateTime.now(), vencedor.getNome(), perdedor.getNome(),
+                    jogadorBot != null ? "Solo" : "PvP", numeroTurno, motivo));
+
+            Map<String, Integer> vitorias = historico.vitoriasPorJogador();
+            int totalPartidas = historico.carregar().size();
+            return "📊 Placar geral (" + totalPartidas + " partidas salvas): "
+                    + vencedor.getNome() + " " + vitorias.getOrDefault(vencedor.getNome(), 0) + " vitória(s)  •  "
+                    + perdedor.getNome() + " " + vitorias.getOrDefault(perdedor.getNome(), 0) + " vitória(s)";
+        } catch (PersistenciaException e) {
+            System.err.println(e.getMessage());
+            return "⚠️ " + e.getMessage();
+        }
+    }
+
     /** Exibe a tela de fim de partida com o resultado e as opções de jogar novamente. */
     private void mostrarTelaFimDeJogo(Jogador vencedor, Jogador perdedor, String motivo) {
         Dimension tela = Toolkit.getDefaultToolkit().getScreenSize();
+        String textoPlacar = salvarResultadoEMontarPlacar(vencedor, perdedor, motivo);
 
         JDialog telaFim = new JDialog(frame, "Fim de Jogo", true);
         telaFim.setSize(tela);
@@ -1480,6 +1395,11 @@ public class AppGUI {
         turnoFinalLabel.setForeground(new Color(210, 210, 230));
         turnoFinalLabel.setBounds(0, (int) (tela.height * 0.40), tela.width, 25);
 
+        JLabel placarLabel = new JLabel(textoPlacar, SwingConstants.CENTER);
+        placarLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        placarLabel.setForeground(new Color(255, 230, 150));
+        placarLabel.setBounds(0, (int) (tela.height * 0.40) + 28, tela.width, 25);
+
         int larguraBotao = 380;
         int alturaBotao = 58;
         int xBotao = centroX - larguraBotao / 2;
@@ -1506,6 +1426,7 @@ public class AppGUI {
         painel.add(tituloVencedor);
         painel.add(motivoLabel);
         painel.add(turnoFinalLabel);
+        painel.add(placarLabel);
         painel.add(btnMesmaEquipe);
         painel.add(btnTrocarEquipe);
         painel.add(btnFechar);
@@ -1723,47 +1644,45 @@ public class AppGUI {
         if (escolha == null) return;
 
         if (escolha.contains("Anexar Energia")) {
-            jogadorAtual.anexarEnergia(pokemon);
+            executarJogada(() -> jogadorAtual.anexarEnergia(pokemon));
         } else if (escolha.contains("Evoluir")) {
             evoluirPokemonEscolhido(pokemon);
         } else if (escolha.contains("Recuar")) {
-            jogadorAtual.recuar(indiceBanco);
+            executarJogada(() -> jogadorAtual.recuar(indiceBanco));
         }
 
         atualizarTela();
     }
 
     private void evoluirPokemonEscolhido(CartaPokemon alvo) {
-        List<Carta> mao = jogadorAtual.getMao();
-        java.util.List<Integer> indicesValidos = new java.util.ArrayList<>();
-        java.util.List<String> nomesValidos = new java.util.ArrayList<>();
-
-        for (int i = 0; i < mao.size(); i++) {
-            if (mao.get(i) instanceof CartaPokemon) {
-                CartaPokemon carta = (CartaPokemon) mao.get(i);
-                if (!carta.isBasico() && carta.getEvoluiDe().equalsIgnoreCase(alvo.getNome())) {
-                    indicesValidos.add(i);
-                    nomesValidos.add(carta.getNome());
-                }
-            }
+        int indiceNaMao = escolherEvolucaoNaMao(alvo, "Evoluir");
+        if (indiceNaMao != -1) {
+            executarJogada(() -> jogadorAtual.evoluir(indiceNaMao, alvo, numeroTurno));
         }
+    }
 
+    /**
+     * Mostra as evoluções do alvo que o jogador tem na mão e deixa escolher uma.
+     * Usado tanto pela evolução normal quanto pela carta Evolução Rápida.
+     *
+     * @return posição da evolução escolhida na mão, ou {@code -1} se não houver ou o jogador cancelar
+     */
+    private int escolherEvolucaoNaMao(CartaPokemon alvo, String tituloDialogo) {
+        List<Integer> indicesValidos = jogadorAtual.indicesDeEvolucoesNaMao(alvo);
         if (indicesValidos.isEmpty()) {
             JOptionPane.showMessageDialog(frame, "Você não tem nenhuma evolução de " + alvo.getNome() + " na mão!");
-            return;
+            return -1;
         }
 
+        java.util.List<String> nomesValidos = new java.util.ArrayList<>();
+        for (int indice : indicesValidos) nomesValidos.add(jogadorAtual.getMao().get(indice).getNome());
+
         String escolha = (String) JOptionPane.showInputDialog(
-                frame, "Evoluir " + alvo.getNome() + " para qual forma?", "Evoluir",
+                frame, "Evoluir " + alvo.getNome() + " para qual forma?", tituloDialogo,
                 JOptionPane.QUESTION_MESSAGE, null, nomesValidos.toArray(), nomesValidos.get(0)
         );
-
-        if (escolha == null) return;
-
-        int posicaoNaLista = nomesValidos.indexOf(escolha);
-        int indiceNaMao = indicesValidos.get(posicaoNaLista);
-
-        jogadorAtual.evoluir(indiceNaMao, alvo, numeroTurno);
+        if (escolha == null) return -1;
+        return indicesValidos.get(nomesValidos.indexOf(escolha));
     }
 
     private void acaoClicarCartaPokemon(int indiceNaMao, CartaPokemon carta) {
@@ -1782,13 +1701,8 @@ public class AppGUI {
                 JOptionPane.QUESTION_MESSAGE,
                 null, opcoes, opcoes[0]);
 
-        if (escolha == 0) {
-            jogadorAtual.colocarPokemonEmCampo(indiceNaMao, 0);
-        } else if (escolha == 1) {
-            jogadorAtual.colocarPokemonEmCampo(indiceNaMao, 1);
-        } else {
-            return;
-        }
+        if (escolha != 0 && escolha != 1) return;
+        executarJogada(() -> jogadorAtual.colocarPokemonEmCampo(indiceNaMao, escolha));
 
         atualizarTela();
     }
@@ -1806,7 +1720,7 @@ public class AppGUI {
                 CartaPokemon alvo = escolherPokemonEmCampoDialog(efeito.getTextoSelecaoAlvo());
                 if (alvo == null) return;
                 parametros.setAlvo(alvo);
-                jogadorAtual.usarCartaTreinador(indiceNaMao, parametros);
+                executarJogada(() -> jogadorAtual.usarCartaTreinador(indiceNaMao, parametros));
                 break;
             }
 
@@ -1824,7 +1738,7 @@ public class AppGUI {
                 if (escolha == null) return;
 
                 parametros.setIndiceBanco(nomes.indexOf(escolha));
-                jogadorAtual.usarCartaTreinador(indiceNaMao, parametros);
+                executarJogada(() -> jogadorAtual.usarCartaTreinador(indiceNaMao, parametros));
                 break;
             }
 
@@ -1834,7 +1748,8 @@ public class AppGUI {
 
             case NENHUM:
             default:
-                // carta sem efeito jogável (ex.: Troféu) — não faz nada
+                // carta sem efeito jogável (ex.: Troféu): a própria estratégia explica o motivo
+                executarJogada(() -> jogadorAtual.usarCartaTreinador(indiceNaMao, parametros));
                 break;
         }
 
@@ -1842,39 +1757,14 @@ public class AppGUI {
     }
 
     private void usarEvolucaoRapidaFluxo(int indiceCartaTreinador) {
-
         CartaPokemon alvo = escolherPokemonEmCampoDialog("Evolução Rápida — qual Pokémon vai evoluir?");
         if (alvo == null) return;
 
-        List<Carta> mao = jogadorAtual.getMao();
-        java.util.List<Integer> indicesValidos = new java.util.ArrayList<>();
-        java.util.List<String> nomesValidos = new java.util.ArrayList<>();
+        int indiceCartaEvolucao = escolherEvolucaoNaMao(alvo, "Evolução Rápida");
+        if (indiceCartaEvolucao == -1) return;
 
-        for (int i = 0; i < mao.size(); i++) {
-            if (mao.get(i) instanceof CartaPokemon) {
-                CartaPokemon carta = (CartaPokemon) mao.get(i);
-                if (!carta.isBasico() && carta.getEvoluiDe().equalsIgnoreCase(alvo.getNome())) {
-                    indicesValidos.add(i);
-                    nomesValidos.add(carta.getNome());
-                }
-            }
-        }
-
-        if (indicesValidos.isEmpty()) {
-            JOptionPane.showMessageDialog(frame, "Você não tem nenhuma evolução de " + alvo.getNome() + " na mão!");
-            return;
-        }
-
-        String escolha = (String) JOptionPane.showInputDialog(
-                frame, "Evoluir " + alvo.getNome() + " para qual forma?", "Evolução Rápida",
-                JOptionPane.QUESTION_MESSAGE, null, nomesValidos.toArray(), nomesValidos.get(0)
-        );
-        if (escolha == null) return;
-
-        int posicaoNaLista = nomesValidos.indexOf(escolha);
-        int indiceCartaEvolucao = indicesValidos.get(posicaoNaLista);
-
-        jogadorAtual.usarEvolucaoRapida(indiceCartaTreinador, indiceCartaEvolucao, alvo);
+        ParametrosEfeito parametros = new ParametrosEfeito().setAlvo(alvo).setIndiceCartaEvolucao(indiceCartaEvolucao);
+        executarJogada(() -> jogadorAtual.usarCartaTreinador(indiceCartaTreinador, parametros));
     }
 
     private CartaPokemon escolherPokemonEmCampoDialog(String titulo) {
@@ -1923,35 +1813,31 @@ public class AppGUI {
         timer.start();
     }
 
+    private static final int LARGURA_MAXIMA_TOAST = 460;
+    private static final int MARGEM_TOAST = 18;
+
     private void mostrarNotificacao(String texto) {
         if (frame == null || !frame.isShowing()) return;
 
-        JLabel toast = new JLabel("<html><div style='padding:4px 8px;'>" + texto + "</div></html>");
-        toast.setOpaque(true);
-        toast.setBackground(new Color(33, 33, 66, 235));
-        toast.setForeground(Color.WHITE);
-        toast.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        toast.setBorder(BorderFactory.createLineBorder(new Color(255, 255, 255, 90), 1));
-
-        Dimension tamanhoPreferido = toast.getPreferredSize();
-        int largura = Math.min(460, Math.max(220, tamanhoPreferido.width + 16));
-        int altura = 36;
-        int margem = 18;
-
-        int x = frame.getWidth() - largura - margem;
-        int y = frame.getHeight() - margem - altura - (toastsAtivos.size() * (altura + 8));
-
-        toast.setBounds(x, Math.max(10, y), largura, altura);
+        JLabel toast = criarToast(texto, null);
+        if (toast.getPreferredSize().width > LARGURA_MAXIMA_TOAST) {
+            // Texto longo: fixa a largura para o HTML quebrar a linha e calcular a altura certa.
+            toast = criarToast(texto, LARGURA_MAXIMA_TOAST - 24);
+        }
+        Dimension tamanho = toast.getPreferredSize();
+        toast.setSize(Math.min(LARGURA_MAXIMA_TOAST, Math.max(220, tamanho.width + 16)), Math.max(36, tamanho.height + 8));
 
         flashPane.add(toast);
         flashPane.setComponentZOrder(toast, 0);
         toastsAtivos.add(toast);
+        reposicionarToasts();
         flashPane.revalidate();
         flashPane.repaint();
 
+        JLabel toastFinal = toast;
         Timer timer = new Timer(2800, e -> {
-            flashPane.remove(toast);
-            toastsAtivos.remove(toast);
+            flashPane.remove(toastFinal);
+            toastsAtivos.remove(toastFinal);
             reposicionarToasts();
             flashPane.revalidate();
             flashPane.repaint();
@@ -1960,41 +1846,40 @@ public class AppGUI {
         timer.start();
     }
 
+    private JLabel criarToast(String texto, Integer larguraTexto) {
+        String estilo = "padding:4px 8px;" + (larguraTexto != null ? " width:" + larguraTexto + "px;" : "");
+        JLabel toast = new JLabel("<html><div style='" + estilo + "'>" + texto + "</div></html>");
+        toast.setOpaque(true);
+        toast.setBackground(new Color(33, 33, 66, 235));
+        toast.setForeground(Color.WHITE);
+        toast.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        toast.setBorder(BorderFactory.createLineBorder(new Color(255, 255, 255, 90), 1));
+        return toast;
+    }
+
+    /** Empilha as notificações de baixo para cima, respeitando a altura de cada uma. */
     private void reposicionarToasts() {
-        int altura = 36;
-        int margem = 18;
-        for (int i = 0; i < toastsAtivos.size(); i++) {
-            JComponent t = toastsAtivos.get(i);
-            int x = frame.getWidth() - t.getWidth() - margem;
-            int y = frame.getHeight() - margem - altura - (i * (altura + 8));
-            t.setLocation(x, Math.max(10, y));
+        int y = frame.getHeight() - MARGEM_TOAST;
+        for (JComponent t : toastsAtivos) {
+            y -= t.getHeight();
+            t.setLocation(frame.getWidth() - t.getWidth() - MARGEM_TOAST, Math.max(10, y));
+            y -= 8;
         }
     }
 
     private void acaoAtacar() {
         if (ehTurnoDoBot) return;
-        boolean sucesso = jogadorAtual.atacar(adversario, numeroTurno);
-        if (sucesso) {
-            mostrarFlashDeAtaque(new Color(220, 40, 40));
-
-            if (jogadorAtual.getPremios().isEmpty()) {
-                jogoAtivo = false;
-                mostrarTelaFimDeJogo(jogadorAtual, adversario, "Conquistou os 2 prêmios!");
-                return;
-            }
-
-            if (adversario.getPokemonAtivo() == null && adversario.getBanco().isEmpty()) {
-                jogoAtivo = false;
-                mostrarTelaFimDeJogo(jogadorAtual, adversario, "Não sobrou nenhum Pokémon em campo!");
-                return;
-            }
-
-            jogadorAtual.encerrarRodada();
-            System.out.println("➡️ Turno encerrado automaticamente após o ataque.");
-            trocarTurno();
-        } else {
+        if (!executarJogada(() -> jogadorAtual.atacar(adversario, numeroTurno))) {
             atualizarTela();
+            return;
         }
+
+        mostrarFlashDeAtaque(new Color(220, 40, 40));
+        if (verificarVitoriaAposAtaque(jogadorAtual, adversario)) return;
+
+        jogadorAtual.encerrarRodada();
+        registrarMensagem("➡️ Turno encerrado automaticamente após o ataque.");
+        trocarTurno();
     }
 
     private void acaoPassarTurno() {
@@ -2002,4 +1887,4 @@ public class AppGUI {
         jogadorAtual.encerrarRodada();
         trocarTurno();
     }
-}
+}

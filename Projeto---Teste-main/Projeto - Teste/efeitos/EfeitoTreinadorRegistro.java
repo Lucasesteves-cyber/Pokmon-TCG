@@ -17,13 +17,14 @@ import java.util.Map;
 public final class EfeitoTreinadorRegistro {
 
     private static final Map<String, EfeitoTreinador> EFEITOS = new HashMap<>();
+    private static final EfeitoTreinador SEM_EFEITO = new EfeitoNenhum();
 
     static {
         registrar(new EfeitoPocao());
         registrar(new EfeitoCuraTotal());
         registrar(new EfeitoTroca());
         registrar(new EfeitoEvolucaoRapida());
-        registrar(new EfeitoNenhum());
+        registrar(SEM_EFEITO);
     }
 
     private EfeitoTreinadorRegistro() { }
@@ -36,9 +37,12 @@ public final class EfeitoTreinadorRegistro {
      * Obtém a estratégia associada ao nome do efeito. Nomes desconhecidos
      * recebem a estratégia {@link EfeitoNenhum}, para que uma carta de
      * treinador nunca fique sem uma estratégia válida.
+     *
+     * @param nomeEfeito nome do efeito (sem diferenciar maiúsculas/minúsculas)
+     * @return a estratégia registrada, ou um {@link EfeitoNenhum} se o nome for desconhecido
      */
     public static EfeitoTreinador obter(String nomeEfeito) {
         EfeitoTreinador efeito = EFEITOS.get(nomeEfeito == null ? "" : nomeEfeito.toLowerCase());
-        return efeito != null ? efeito : new EfeitoNenhum();
+        return efeito != null ? efeito : SEM_EFEITO;
     }
-}
+}

@@ -1,35 +1,47 @@
 package efeitos;
 
+import eventos.TipoEvento;
+import excecoes.JogadaInvalidaException;
 import modelo.CartaPokemon;
 import modelo.Jogador;
 
-/** Efeito da carta "Poção": cura 30 de HP de um Pokémon em campo. */
+/** Efeito da carta "Poção": cura {@value #CURA} de HP de um Pokémon em campo. */
 public class EfeitoPocao implements EfeitoTreinador {
 
-    private static final int CURA = 40;
+    /** Cria a estratégia de Poção. */
+    public EfeitoPocao() { }
 
+    /** Quantidade de HP recuperada pela Poção. */
+    public static final int CURA = 30;
+
+    /** {@inheritDoc} */
     @Override
     public String getNome() { return "Poção"; }
 
+    /** {@inheritDoc} */
     @Override
     public TipoAlvo getTipoAlvoNecessario() { return TipoAlvo.POKEMON_EM_CAMPO; }
 
+    /** {@inheritDoc} */
     @Override
-    public String getTextoSelecaoAlvo() { return "Curar qual Pokémon? (Poção: +30 HP)"; }
+    public String getTextoSelecaoAlvo() { return "Curar qual Pokémon? (Poção: +" + CURA + " HP)"; }
 
+    /**
+     * Cura {@value #CURA} de HP do alvo (sem passar do HP máximo) e descarta a carta.
+     *
+     * @throws JogadaInvalidaException se nenhum alvo foi escolhido
+     */
     @Override
-    public boolean aplicar(Jogador jogador, int indiceNaMao, ParametrosEfeito parametros) {
+    public void aplicar(Jogador jogador, int indiceNaMao, ParametrosEfeito parametros) {
         CartaPokemon alvo = parametros.getAlvo();
         if (alvo == null) {
-            System.out.println("Escolha um Pokémon válido em campo para curar!");
-            return false;
+            throw new JogadaInvalidaException("Escolha um Pokémon válido em campo para curar!");
         }
 
         alvo.curar(CURA);
         jogador.getMao().remove(indiceNaMao);
 
-        System.out.println("\n💊 " + jogador.getNome() + " usou Poção em " + alvo.getNome() + "! Curou " + CURA
-                + " HP. (" + alvo.getHpAtual() + "/" + alvo.getHpMaximo() + ")");
-        return true;
+        jogador.notificar(TipoEvento.TREINADOR, "💊 " + jogador.getNome() + " usou Poção em " + alvo.getNome()
+                + "! Curou até " + CURA + " HP. (" + alvo.getHpAtual() + "/" + alvo.getHpMaximo() + ")");
     }
 }

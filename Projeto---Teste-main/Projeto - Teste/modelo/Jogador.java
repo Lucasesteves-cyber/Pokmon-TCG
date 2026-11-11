@@ -2,8 +2,15 @@ package modelo;
 
 import efeitos.EfeitoTreinador;
 import efeitos.ParametrosEfeito;
+import eventos.EventoJogo;
+import eventos.OuvinteJogo;
+import eventos.TipoEvento;
+import excecoes.BaralhoVazioException;
+import excecoes.JogadaInvalidaException;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Representa um jogador (humano ou controlado pelo Bot) e todo o seu estado
@@ -12,58 +19,125 @@ import java.util.*;
  * anexar energia, evoluir, atacar, usar cartas de treinador), enquanto a
  * interface gráfica ({@link ui.AppGUI}) cuida apenas de coletar as escolhas do
  * jogador e exibir o resultado.
+ *
+ * <p><b>Tratamento de erros:</b> quando uma ação desrespeita as regras, o
+ * método lança {@link JogadaInvalidaException} com uma mensagem explicando o
+ * motivo; quando o baralho acaba na hora de comprar, lança
+ * {@link BaralhoVazioException}. Nenhum método imprime nada nem devolve
+ * {@code false} para indicar erro.</p>
+ *
+ * <p><b>Observer:</b> este é o <i>Subject</i> do padrão Observer. Cada ação
+ * bem-sucedida gera um {@link EventoJogo}, entregue a todos os
+ * {@link OuvinteJogo} inscritos com {@link #adicionarOuvinte(OuvinteJogo)}.</p>
  */
 public class Jogador {
-    private String nome;
-    private List<Carta> baralho;
-    private List<Carta> mao;
+
+    /** Quantidade máxima de Pokémon no Banco de Reservas. */
+    public static final int LIMITE_BANCO = 5;
+
+    /** Quantas energias o Pokémon Ativo precisa descartar para recuar. */
+    public static final int CUSTO_RECUO = 1;
+
+    /** Turno a partir do qual ataques e evoluções normais são permitidos. */
+    public static final int TURNO_MINIMO_ATAQUE_E_EVOLUCAO = 2;
+
+    private final String nome;
+    private final List<Carta> baralho = new ArrayList<>();
+    private final List<Carta> mao = new ArrayList<>();
     private CartaPokemon pokemonAtivo;
-    private List<CartaPokemon> banco;
-    private List<CartaPokemon> zonaMorta;
-    private List<Carta> premios;
+    private final List<CartaPokemon> banco = new ArrayList<>();
+    private final List<CartaPokemon> zonaMorta = new ArrayList<>();
+    private final List<Carta> premios = new ArrayList<>();
+    private final List<OuvinteJogo> ouvintes = new ArrayList<>();
 
     private boolean energiaAnexadaNestaRodada;
     private boolean atacouNestaRodada;
     private boolean recuouNesteTurno;
 
-    /** Cria um novo jogador com baralho, mão, banco e prêmios vazios. */
+    /**
+     * Cria um novo jogador com baralho, mão, banco e prêmios vazios.
+     *
+     * @param nome nome do treinador (não pode ser vazio)
+     * @throws IllegalArgumentException se o nome for {@code null} ou vazio
+     */
     public Jogador(String nome) {
-        this.nome = nome;
-        this.baralho = new ArrayList<>();
-        this.mao = new ArrayList<>();
-        this.banco = new ArrayList<>();
-        this.zonaMorta = new ArrayList<>();
-        this.premios = new ArrayList<>();
-        this.pokemonAtivo = null;
-        this.energiaAnexadaNestaRodada = false;
-        this.atacouNestaRodada = false;
-        this.recuouNesteTurno = false;
+        if (nome == null || nome.isBlank()) {
+            throw new IllegalArgumentException("O nome do treinador não pode ficar vazio.");
+        }
+        this.nome = nome.trim();
     }
 
-    /** Adiciona uma carta ao final do baralho (usado ao montar o time, antes de embaralhar). */
+    // ------------------------------------------------------------------
+    // Observer
+    // ------------------------------------------------------------------
+
+    /**
+     * Inscreve um ouvinte para receber os eventos deste jogador.
+     *
+     * @param ouvinte quem será avisado a cada acontecimento da partida
+     */
+    public void adicionarOuvinte(OuvinteJogo ouvinte) {
+        if (ouvinte != null && !ouvintes.contains(ouvinte)) {
+            ouvintes.add(ouvinte);
+        }
+    }
+
+    /**
+     * Cancela a inscrição de um ouvinte.
+     *
+     * @param ouvinte ouvinte inscrito anteriormente
+     */
+    public void removerOuvinte(OuvinteJogo ouvinte) {
+        ouvintes.remove(ouvinte);
+    }
+
+    /**
+     * Avisa todos os ouvintes inscritos de que algo aconteceu.
+     *
+     * <p>É público porque as estratégias de {@link EfeitoTreinador}, que ficam
+     * em outro pacote, também precisam anunciar o efeito que aplicaram.</p>
+     *
+     * @param tipo     categoria do evento
+     * @param mensagem texto a ser exibido
+     */
+    public void notificar(TipoEvento tipo, String mensagem) {
+        EventoJogo evento = new EventoJogo(tipo, mensagem);
+        // Copia a lista para que um ouvinte possa se remover durante a notificação.
+        for (OuvinteJogo ouvinte : new ArrayList<>(ouvintes)) {
+            ouvinte.aoOcorrerEvento(evento);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Baralho e mão
+    // ------------------------------------------------------------------
+
+    /**
+     * Adiciona uma carta ao final do baralho (usado ao montar o time, antes de embaralhar).
+     *
+     * @param carta carta a adicionar
+     */
     public void adicionarAoBaralho(Carta carta) {
         this.baralho.add(carta);
     }
 
     /** Embaralha o baralho deste jogador em ordem aleatória. */
-    public void verificarBaralho() {
+    public void embaralhar() {
         Collections.shuffle(this.baralho);
     }
 
     /**
      * Compra a carta do topo do baralho para a mão.
-     * @return {@code true} se havia carta para comprar; {@code false} se o baralho estava vazio
+     *
+     * @throws BaralhoVazioException se não houver carta para comprar (derrota pelas regras)
      */
-    public boolean comprarCarta() {
-        if (!baralho.isEmpty()) {
-            Carta cartaComprada = baralho.remove(0);
-            mao.add(cartaComprada);
-            System.out.println(nome + " comprou: " + cartaComprada.getNome());
-            return true;
-        } else {
-            System.out.println("O baralho de " + nome + " acabou!");
-            return false;
+    public void comprarCarta() {
+        if (baralho.isEmpty()) {
+            throw new BaralhoVazioException(nome);
         }
+        Carta cartaComprada = baralho.remove(0);
+        mao.add(cartaComprada);
+        notificar(TipoEvento.COMPRA, nome + " comprou: " + cartaComprada.getNome());
     }
 
     /** @return quantidade de cartas restantes no baralho */
@@ -71,55 +145,48 @@ public class Jogador {
         return baralho.size();
     }
 
+    // ------------------------------------------------------------------
+    // Ações do turno
+    // ------------------------------------------------------------------
+
     /**
      * Coloca uma carta de Pokémon básica (da mão) em campo.
      *
      * @param indiceNaMao posição da carta na mão
      * @param destino     0 para colocar como Pokémon Ativo, 1 para colocar no Banco
+     * @throws JogadaInvalidaException se a carta não for um Pokémon Básico, se o
+     *                                 destino estiver ocupado/cheio ou se o destino for inválido
      */
     public void colocarPokemonEmCampo(int indiceNaMao, int destino) {
-        if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
-            System.out.println("Posição inválida na mão!");
-            return;
-        }
-
-        Carta carta = mao.get(indiceNaMao);
+        Carta carta = cartaDaMao(indiceNaMao);
 
         if (!(carta instanceof CartaPokemon)) {
-            System.out.println("Essa carta não é um Pokémon!");
-            return;
+            throw new JogadaInvalidaException(carta.getNome() + " não é um Pokémon!");
         }
-
         CartaPokemon pokemon = (CartaPokemon) carta;
 
         if (!pokemon.isBasico()) {
-            System.out.println("⚠️ " + pokemon.getNome() + " é uma evolução (evolui de " + pokemon.getEvoluiDe()
-                    + ")! Você não pode colocá-lo direto em campo — use a opção de Evoluir em cima de um "
-                    + pokemon.getEvoluiDe() + " que já esteja em campo.");
-            return;
+            throw new JogadaInvalidaException(pokemon.getNome() + " é uma evolução (evolui de " + pokemon.getEvoluiDe()
+                    + ")! Ele não pode entrar direto em campo — evolua um " + pokemon.getEvoluiDe() + " que já esteja em campo.");
         }
 
         if (destino == 0) {
             if (pokemonAtivo != null) {
-                System.out.println("⚠️ Você já tem um Pokémon Ativo (" + pokemonAtivo.getNome()
+                throw new JogadaInvalidaException("Você já tem um Pokémon Ativo (" + pokemonAtivo.getNome()
                         + "). Escolha o Banco ou troque de Ativo primeiro.");
-                return;
             }
-            pokemonAtivo = (CartaPokemon) carta;
             mao.remove(indiceNaMao);
-            System.out.println("\n🔥 " + nome + " colocou " + pokemonAtivo.getNome() + " como seu Pokémon Ativo!");
-
+            pokemonAtivo = pokemon;
+            notificar(TipoEvento.POKEMON_EM_CAMPO, "🔥 " + nome + " colocou " + pokemon.getNome() + " como seu Pokémon Ativo!");
         } else if (destino == 1) {
-            if (banco.size() >= 5) {
-                System.out.println("O Banco de Reservas está cheio!");
-                return;
+            if (banco.size() >= LIMITE_BANCO) {
+                throw new JogadaInvalidaException("O Banco de Reservas está cheio (máximo de " + LIMITE_BANCO + " Pokémon)!");
             }
-            banco.add((CartaPokemon) carta);
             mao.remove(indiceNaMao);
-            System.out.println("\n💤 " + nome + " colocou " + carta.getNome() + " no Banco de Reservas.");
-
+            banco.add(pokemon);
+            notificar(TipoEvento.POKEMON_EM_CAMPO, "💤 " + nome + " colocou " + pokemon.getNome() + " no Banco de Reservas.");
         } else {
-            System.out.println("Destino inválido! Escolha 0 (Ativo) ou 1 (Banco).");
+            throw new JogadaInvalidaException("Destino inválido! Escolha 0 (Ativo) ou 1 (Banco).");
         }
     }
 
@@ -127,36 +194,33 @@ public class Jogador {
      * Anexa uma nova carta de energia (do tipo do próprio alvo) a um Pokémon em campo,
      * respeitando o limite de 1 energia anexada por rodada.
      *
-     * @return {@code true} se a energia foi anexada com sucesso
+     * @param destino Pokémon em campo que vai receber a energia
+     * @throws JogadaInvalidaException se já houve energia nesta rodada, se não houver
+     *                                 alvo ou se o alvo estiver no limite de energias
      */
-    public boolean anexarEnergia(CartaPokemon destino) {
+    public void anexarEnergia(CartaPokemon destino) {
         if (energiaAnexadaNestaRodada) {
-            System.out.println("⚠️ Você já anexou uma Energia nesta rodada! Só é permitida 1 por rodada.");
-            return false;
+            throw new JogadaInvalidaException("Você já anexou uma Energia nesta rodada! Só é permitida 1 por rodada.");
         }
-
         if (destino == null) {
-            System.out.println("Não há Pokémon para receber a energia!");
-            return false;
+            throw new JogadaInvalidaException("Não há Pokémon para receber a energia!");
         }
 
         CartaEnergia energia = new CartaEnergia("Energia de " + destino.getTipoElemento(), destino.getTipoElemento());
-        boolean sucesso = destino.anexarEnergia(energia);
-
-        if (!sucesso) {
-            System.out.println("⚠️ " + destino.getNome() + " já está no limite máximo de energias ("
+        if (!destino.anexarEnergia(energia)) {
+            throw new JogadaInvalidaException(destino.getNome() + " já está no limite máximo de energias ("
                     + destino.getLimiteEnergias() + ")! Não é possível anexar mais.");
-            return false;
         }
 
         energiaAnexadaNestaRodada = true;
-        System.out.println("\n⚡ " + nome + " anexou uma Energia de " + destino.getTipoElemento() + " em "
+        notificar(TipoEvento.ENERGIA, "⚡ " + nome + " anexou uma Energia de " + destino.getTipoElemento() + " em "
                 + destino.getNome() + "! (" + destino.getQuantidadeEnergias() + "/" + destino.getLimiteEnergias() + ")");
-        return true;
     }
 
     /**
      * Localiza um Pokémon em campo pelo índice usado nos menus (0 = Ativo, 1 a 5 = posição no Banco).
+     *
+     * @param indice 0 para o Ativo, 1 a 5 para a posição no Banco
      * @return o Pokémon correspondente, ou {@code null} se o índice for inválido ou não houver Pokémon ali
      */
     public CartaPokemon getPokemonDoCampoPorIndice(int indice) {
@@ -172,63 +236,60 @@ public class Jogador {
      * Evolui um Pokémon em campo, respeitando a regra de que evolução só é
      * permitida a partir do Turno 2 e uma vez por turno por Pokémon.
      *
-     * @param indiceNaMao  posição, na mão, da carta de evolução a usar
-     * @param alvoEmCampo  Pokémon em campo que vai evoluir
-     * @param turnoAtual   número do turno atual da partida
+     * @param indiceNaMao posição, na mão, da carta de evolução a usar
+     * @param alvoEmCampo Pokémon em campo que vai evoluir
+     * @param turnoAtual  número do turno atual da partida
+     * @throws JogadaInvalidaException se a evolução não for permitida
      */
-    public boolean evoluir(int indiceNaMao, CartaPokemon alvoEmCampo, int turnoAtual) {
-        if (turnoAtual < 2) {
-            System.out.println("⚠️ Evolução só é permitida a partir do Turno 2! Espere o próximo turno.");
-            return false;
+    public void evoluir(int indiceNaMao, CartaPokemon alvoEmCampo, int turnoAtual) {
+        if (turnoAtual < TURNO_MINIMO_ATAQUE_E_EVOLUCAO) {
+            throw new JogadaInvalidaException("Evolução só é permitida a partir do Turno "
+                    + TURNO_MINIMO_ATAQUE_E_EVOLUCAO + "! Espere o próximo turno.");
         }
-
         if (alvoEmCampo != null && alvoEmCampo.isEvoluiuNesteTurno()) {
-            System.out.println("⚠️ " + alvoEmCampo.getNome() + " já evoluiu neste turno! Espere o próximo turno.");
-            return false;
+            throw new JogadaInvalidaException(alvoEmCampo.getNome() + " já evoluiu neste turno! Espere o próximo turno.");
         }
-
-        return executarEvolucao(indiceNaMao, alvoEmCampo);
+        executarEvolucao(indiceNaMao, alvoEmCampo);
     }
 
-    // Pacote-padrão (sem modificador) de propósito: precisa ser chamado pela
-    // estratégia EfeitoEvolucaoRapida, que fica fora da classe Jogador.
-    public boolean executarEvolucao(int indiceNaMao, CartaPokemon alvoEmCampo) {
-        if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
-            System.out.println("Posição inválida na mão!");
-            return false;
-        }
-
-        Carta carta = mao.get(indiceNaMao);
+    /**
+     * Executa a troca da carta em campo pela sua evolução, transferindo energias e
+     * dano já sofrido, <b>sem</b> checar as restrições de turno. É público porque a
+     * estratégia {@link efeitos.EfeitoEvolucaoRapida} (outro pacote) existe
+     * justamente para pular essas restrições.
+     *
+     * @param indiceNaMao posição, na mão, da carta de evolução
+     * @param alvoEmCampo Pokémon em campo que vai evoluir
+     * @throws JogadaInvalidaException se a carta não for uma evolução válida para o alvo
+     */
+    public void executarEvolucao(int indiceNaMao, CartaPokemon alvoEmCampo) {
+        Carta carta = cartaDaMao(indiceNaMao);
 
         if (!(carta instanceof CartaPokemon)) {
-            System.out.println("Essa carta não é um Pokémon!");
-            return false;
+            throw new JogadaInvalidaException(carta.getNome() + " não é um Pokémon!");
         }
-
         CartaPokemon cartaEvolucao = (CartaPokemon) carta;
 
         if (cartaEvolucao.isBasico()) {
-            System.out.println("⚠️ " + cartaEvolucao.getNome() + " é uma forma Básica, não uma evolução!");
-            return false;
+            throw new JogadaInvalidaException(cartaEvolucao.getNome() + " é uma forma Básica, não uma evolução!");
         }
-
         if (alvoEmCampo == null) {
-            System.out.println("Escolha um Pokémon em campo válido para evoluir!");
-            return false;
+            throw new JogadaInvalidaException("Escolha um Pokémon em campo válido para evoluir!");
+        }
+        if (!cartaEvolucao.getEvoluiDe().equalsIgnoreCase(alvoEmCampo.getNome())) {
+            throw new JogadaInvalidaException(cartaEvolucao.getNome() + " não evolui de " + alvoEmCampo.getNome()
+                    + "! Ele evolui de " + cartaEvolucao.getEvoluiDe() + ".");
         }
 
-        if (!cartaEvolucao.getEvoluiDe().equalsIgnoreCase(alvoEmCampo.getNome())) {
-            System.out.println("⚠️ " + cartaEvolucao.getNome() + " não evolui de " + alvoEmCampo.getNome()
-                    + "! Ele evolui de " + cartaEvolucao.getEvoluiDe() + ".");
-            return false;
+        int indiceNoBanco = banco.indexOf(alvoEmCampo);
+        if (alvoEmCampo != pokemonAtivo && indiceNoBanco == -1) {
+            throw new JogadaInvalidaException(alvoEmCampo.getNome() + " não está em campo!");
         }
 
         int danoJaSofrido = alvoEmCampo.getHpMaximo() - alvoEmCampo.getHpAtual();
-
         for (CartaEnergia energia : alvoEmCampo.getEnergiasAnexadas()) {
             cartaEvolucao.anexarEnergia(energia);
         }
-
         if (danoJaSofrido > 0) {
             cartaEvolucao.receberDano(danoJaSofrido);
         }
@@ -236,57 +297,34 @@ public class Jogador {
         if (alvoEmCampo == pokemonAtivo) {
             pokemonAtivo = cartaEvolucao;
         } else {
-            int indiceNoBanco = banco.indexOf(alvoEmCampo);
-            if (indiceNoBanco == -1) {
-                System.out.println("Esse Pokémon não está em campo!");
-                return false;
-            }
             banco.set(indiceNoBanco, cartaEvolucao);
         }
 
         mao.remove(indiceNaMao);
         cartaEvolucao.setEvoluiuNesteTurno(true);
 
-        System.out.println("\n✨ " + alvoEmCampo.getNome() + " evoluiu para " + cartaEvolucao.getNome() + "!");
-        return true;
+        notificar(TipoEvento.EVOLUCAO, "✨ " + alvoEmCampo.getNome() + " evoluiu para " + cartaEvolucao.getNome() + "!");
     }
 
     /**
      * Ponto de entrada único para usar qualquer carta de treinador.
      *
-     * <p>Antes desta refatoração, cada efeito de treinador tinha seu próprio
-     * método aqui em {@code Jogador} (um para Poção, outro para Cura Total,
-     * outro para Troca...), todos repetindo a mesma validação de índice e
-     * tipo de carta. Agora essa validação fica centralizada aqui, e o
+     * <p>A validação comum (índice e tipo de carta) fica aqui, e o
      * comportamento específico de cada efeito é delegado à sua
      * {@link EfeitoTreinador} (padrão de projeto <b>Strategy</b>), obtida a
      * partir da própria carta.</p>
+     *
+     * @param indiceNaMao posição da carta de treinador na mão
+     * @param parametros  alvo(s) escolhidos pelo jogador
+     * @throws JogadaInvalidaException se a carta não for de treinador ou se o efeito não puder ser aplicado
      */
-    public boolean usarCartaTreinador(int indiceNaMao, ParametrosEfeito parametros) {
-        if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
-            System.out.println("Posição inválida na mão!");
-            return false;
-        }
-
-        Carta carta = mao.get(indiceNaMao);
+    public void usarCartaTreinador(int indiceNaMao, ParametrosEfeito parametros) {
+        Carta carta = cartaDaMao(indiceNaMao);
         if (!(carta instanceof CartaTreinador)) {
-            System.out.println("Essa carta não é uma carta de Treinador!");
-            return false;
+            throw new JogadaInvalidaException(carta.getNome() + " não é uma carta de Treinador!");
         }
-
         EfeitoTreinador efeito = ((CartaTreinador) carta).getEstrategia();
-        return efeito.aplicar(this, indiceNaMao, parametros);
-    }
-
-    /**
-     * Atalho de compatibilidade para usar uma carta "Evolução Rápida". Internamente
-     * delega para {@link #usarCartaTreinador} e para a estratégia {@link efeitos.EfeitoEvolucaoRapida}.
-     */
-    public boolean usarEvolucaoRapida(int indiceCartaTreinador, int indiceCartaEvolucao, CartaPokemon alvoEmCampo) {
-        ParametrosEfeito parametros = new ParametrosEfeito();
-        parametros.setAlvo(alvoEmCampo);
-        parametros.setIndiceCartaEvolucao(indiceCartaEvolucao);
-        return usarCartaTreinador(indiceCartaTreinador, parametros);
+        efeito.aplicar(this, indiceNaMao, parametros);
     }
 
     /** Libera todos os Pokémon em campo para poderem evoluir novamente no próximo turno. */
@@ -302,158 +340,110 @@ public class Jogador {
      *
      * @param oponente   jogador adversário
      * @param turnoAtual número do turno atual (ataque só é permitido a partir do Turno 2)
-     * @return {@code true} se o ataque foi executado
+     * @throws JogadaInvalidaException se o ataque não for permitido agora
      */
-    public boolean atacar(Jogador oponente, int turnoAtual) {
-        if (turnoAtual < 2) {
-            System.out.println("⚠️ Não é permitido atacar no primeiro turno da partida! Espere o próximo turno.");
-            return false;
+    public void atacar(Jogador oponente, int turnoAtual) {
+        if (turnoAtual < TURNO_MINIMO_ATAQUE_E_EVOLUCAO) {
+            throw new JogadaInvalidaException("Não é permitido atacar no primeiro turno da partida! Espere o próximo turno.");
         }
-
         if (atacouNestaRodada) {
-            System.out.println("⚠️ Você já atacou nesta rodada! Só é permitido 1 ataque por rodada.");
-            return false;
+            throw new JogadaInvalidaException("Você já atacou nesta rodada! Só é permitido 1 ataque por rodada.");
         }
-
         if (pokemonAtivo == null) {
-            System.out.println(nome + " não tem Pokémon Ativo para atacar! (Só o Pokémon Ativo pode atacar — os do Banco não atacam.)");
-            return false;
+            throw new JogadaInvalidaException(nome + " não tem Pokémon Ativo para atacar! (Só o Pokémon Ativo pode atacar.)");
         }
-
         if (oponente.pokemonAtivo == null) {
-            System.out.println("O oponente não tem Pokémon Ativo para ser atacado!");
-            return false;
+            throw new JogadaInvalidaException("O oponente não tem Pokémon Ativo para ser atacado!");
         }
-
         if (pokemonAtivo.getQuantidadeEnergias() < 1) {
-            System.out.println("⚠️ " + pokemonAtivo.getNome() + " não tem energia suficiente para atacar!");
-            return false;
+            throw new JogadaInvalidaException(pokemonAtivo.getNome() + " não tem energia suficiente para atacar! Anexe pelo menos 1 Energia.");
         }
 
-        int dano = pokemonAtivo.getDanoAtaque();
         CartaPokemon alvo = oponente.pokemonAtivo;
+        boolean superEfetivo = TabelaDeTipos.eSuperEfetivo(pokemonAtivo.getTipoElemento(), alvo.getTipoElemento());
+        int dano = superEfetivo ? pokemonAtivo.getDanoAtaque() * 2 : pokemonAtivo.getDanoAtaque();
 
-        boolean superEfetivo = eSuperEfetivo(pokemonAtivo.getTipoElemento(), alvo.getTipoElemento());
-        if (superEfetivo) {
-            dano *= 2;
-        }
-
-        System.out.println("\n💥 " + pokemonAtivo.getNome() + " atacou " + alvo.getNome() + " causando " + dano + " de dano!"
-                + (superEfetivo ? " 🔥 É SUPER EFETIVO! (Fraqueza — dano dobrado)" : ""));
         alvo.receberDano(dano);
         atacouNestaRodada = true;
+        notificar(TipoEvento.ATAQUE, "💥 " + pokemonAtivo.getNome() + " atacou " + alvo.getNome() + " causando " + dano + " de dano!"
+                + (superEfetivo ? " 🔥 É SUPER EFETIVO! (Fraqueza — dano dobrado)" : ""));
 
         if (alvo.isNocauteado()) {
-            System.out.println("☠️ " + alvo.getNome() + " foi Nocauteado!");
-            oponente.zonaMorta.add(alvo);
-            oponente.pokemonAtivo = null;
-
-            if (!premios.isEmpty()) {
-                Carta premio = premios.remove(0);
-                mao.add(premio);
-                System.out.println("🏅 " + nome + " conquistou um prêmio! (" + (2 - premios.size()) + "/2)");
-            }
-
-            if (!oponente.banco.isEmpty()) {
-                CartaPokemon novoAtivo = oponente.banco.remove(0);
-                oponente.pokemonAtivo = novoAtivo;
-                System.out.println("🔄 " + oponente.getNome() + " enviou " + novoAtivo.getNome() + " do Banco para o campo!");
-            } else {
-                System.out.println(oponente.getNome() + " não tem mais Pokémon no Banco!");
-            }
+            resolverNocaute(oponente, alvo);
         } else {
-            System.out.println(alvo.getNome() + " ficou com " + alvo.getHpAtual() + "/" + alvo.getHpMaximo() + " HP.");
+            notificar(TipoEvento.INFORMACAO, alvo.getNome() + " ficou com " + alvo.getHpAtual() + "/" + alvo.getHpMaximo() + " HP.");
+        }
+    }
+
+    private void resolverNocaute(Jogador oponente, CartaPokemon nocauteado) {
+        notificar(TipoEvento.NOCAUTE, "☠️ " + nocauteado.getNome() + " foi Nocauteado!");
+        oponente.zonaMorta.add(nocauteado);
+        oponente.pokemonAtivo = null;
+
+        if (!premios.isEmpty()) {
+            mao.add(premios.remove(0));
+            notificar(TipoEvento.PREMIO, "🏅 " + nome + " conquistou um prêmio! (faltam " + premios.size() + ")");
         }
 
-        return true;
+        if (!oponente.banco.isEmpty()) {
+            oponente.pokemonAtivo = oponente.banco.remove(0);
+            notificar(TipoEvento.TROCA_DE_ATIVO, "🔄 " + oponente.getNome() + " enviou " + oponente.pokemonAtivo.getNome()
+                    + " do Banco para o campo!");
+        } else {
+            notificar(TipoEvento.INFORMACAO, oponente.getNome() + " não tem mais Pokémon no Banco!");
+        }
     }
 
-    private boolean eSuperEfetivo(String tipoAtacante, String tipoDefensor) {
-        return (tipoAtacante.equalsIgnoreCase("Água") && tipoDefensor.equalsIgnoreCase("Fogo"))
-                || (tipoAtacante.equalsIgnoreCase("Fogo") && tipoDefensor.equalsIgnoreCase("Planta"))
-                || (tipoAtacante.equalsIgnoreCase("Planta") && tipoDefensor.equalsIgnoreCase("Água"));
-    }
-
-    // Pacote-padrão (sem modificador) de propósito: precisa ser chamado pela
-    // estratégia EfeitoTroca, que fica fora da classe Jogador.
+    /**
+     * Troca o Pokémon Ativo por um do Banco, sem custo. Usado pelo recuo e pela
+     * estratégia {@link efeitos.EfeitoTroca} (por isso é público).
+     *
+     * @param indiceBanco posição (0 a 4) do Pokémon do Banco que vira o novo Ativo
+     * @throws JogadaInvalidaException se não houver Ativo, se o Banco estiver vazio ou se a posição for inválida
+     */
     public void trocarAtivoComBanco(int indiceBanco) {
+        if (pokemonAtivo == null) {
+            throw new JogadaInvalidaException("Você não tem Pokémon Ativo para trocar!");
+        }
+        if (banco.isEmpty()) {
+            throw new JogadaInvalidaException("Seu Banco está vazio, não há para quem trocar!");
+        }
+        if (indiceBanco < 0 || indiceBanco >= banco.size()) {
+            throw new JogadaInvalidaException("Posição inválida no Banco! Escolha de 1 a " + banco.size() + ".");
+        }
+
         CartaPokemon antigoAtivo = pokemonAtivo;
-        CartaPokemon novoAtivo = banco.remove(indiceBanco);
+        pokemonAtivo = banco.remove(indiceBanco);
         banco.add(antigoAtivo);
-        pokemonAtivo = novoAtivo;
-        System.out.println("\n🔄 " + nome + " trocou " + antigoAtivo.getNome() + " e colocou " + pokemonAtivo.getNome() + " como novo Ativo!");
+        notificar(TipoEvento.TROCA_DE_ATIVO, "🔄 " + nome + " trocou " + antigoAtivo.getNome() + " e colocou "
+                + pokemonAtivo.getNome() + " como novo Ativo!");
     }
 
     /**
      * Recua o Pokémon Ativo para o Banco (trocando por outro), pagando o
-     * custo de 1 energia. Diferente da carta Troca, só pode ser feito 1 vez por turno.
+     * custo de {@value #CUSTO_RECUO} energia. Diferente da carta Troca, só pode
+     * ser feito 1 vez por turno.
+     *
+     * @param indiceBanco posição (0 a 4) do Pokémon do Banco que vira o novo Ativo
+     * @throws JogadaInvalidaException se o recuo não for permitido
      */
-    public boolean recuar(int indiceBanco) {
-        final int CUSTO_RECUO = 1;
-
+    public void recuar(int indiceBanco) {
         if (recuouNesteTurno) {
-            System.out.println("⚠️ Você já recuou nesta rodada! Só é permitido 1 recuo por turno.");
-            return false;
+            throw new JogadaInvalidaException("Você já recuou nesta rodada! Só é permitido 1 recuo por turno.");
         }
-
-        if (pokemonAtivo == null) {
-            System.out.println("Você não tem Pokémon Ativo para recuar!");
-            return false;
-        }
-
-        if (banco.isEmpty()) {
-            System.out.println("Seu Banco está vazio, não há para quem trocar!");
-            return false;
-        }
-
-        if (indiceBanco < 0 || indiceBanco >= banco.size()) {
-            System.out.println("Posição inválida no Banco!");
-            return false;
-        }
-
-        if (pokemonAtivo.getQuantidadeEnergias() < CUSTO_RECUO) {
-            System.out.println("⚠️ " + pokemonAtivo.getNome() + " não tem energia suficiente pra pagar o custo de recuo ("
+        if (pokemonAtivo != null && pokemonAtivo.getQuantidadeEnergias() < CUSTO_RECUO) {
+            throw new JogadaInvalidaException(pokemonAtivo.getNome() + " não tem energia suficiente pra pagar o custo de recuo ("
                     + CUSTO_RECUO + ")!");
-            return false;
         }
 
+        CartaPokemon quemRecua = pokemonAtivo;
+        trocarAtivoComBanco(indiceBanco); // valida Ativo, Banco e posição
+
+        // Só paga o custo depois que a troca deu certo.
         for (int i = 0; i < CUSTO_RECUO; i++) {
-            pokemonAtivo.getEnergiasAnexadas().remove(0);
+            quemRecua.getEnergiasAnexadas().remove(0);
         }
-
-        trocarAtivoComBanco(indiceBanco);
         recuouNesteTurno = true;
-        return true;
-    }
-
-    /**
-     * Atalho de compatibilidade para usar uma carta "Poção". Internamente
-     * delega para {@link #usarCartaTreinador} e para a estratégia {@link efeitos.EfeitoPocao}.
-     */
-    public boolean usarPocao(int indiceNaMao, CartaPokemon alvo) {
-        ParametrosEfeito parametros = new ParametrosEfeito();
-        parametros.setAlvo(alvo);
-        return usarCartaTreinador(indiceNaMao, parametros);
-    }
-
-    /**
-     * Atalho de compatibilidade para usar uma carta "Cura Total". Internamente
-     * delega para {@link #usarCartaTreinador} e para a estratégia {@link efeitos.EfeitoCuraTotal}.
-     */
-    public boolean usarCuraTotal(int indiceNaMao, CartaPokemon alvo) {
-        ParametrosEfeito parametros = new ParametrosEfeito();
-        parametros.setAlvo(alvo);
-        return usarCartaTreinador(indiceNaMao, parametros);
-    }
-
-    /**
-     * Atalho de compatibilidade para usar uma carta "Troca". Internamente
-     * delega para {@link #usarCartaTreinador} e para a estratégia {@link efeitos.EfeitoTroca}.
-     */
-    public boolean usarTroca(int indiceNaMao, int indiceBanco) {
-        ParametrosEfeito parametros = new ParametrosEfeito();
-        parametros.setIndiceBanco(indiceBanco);
-        return usarCartaTreinador(indiceNaMao, parametros);
     }
 
     /** Reinicia os controles de "uma vez por rodada" (energia, ataque, recuo) ao fim do turno. */
@@ -461,45 +451,50 @@ public class Jogador {
         energiaAnexadaNestaRodada = false;
         atacouNestaRodada = false;
         recuouNesteTurno = false;
-        System.out.println("\n🔚 " + nome + " encerrou o turno.");
+        notificar(TipoEvento.FIM_DE_TURNO, "🔚 " + nome + " encerrou o turno.");
     }
 
-    /** @return {@code true} se este jogador já anexou energia nesta rodada */
-    public boolean isEnergiaAnexadaNestaRodada() { return energiaAnexadaNestaRodada; }
-    /** @return {@code true} se este jogador já atacou nesta rodada */
-    public boolean isAtacouNestaRodada() { return atacouNestaRodada; }
-    /** @return {@code true} se este jogador já recuou nesta rodada */
-    public boolean isRecuouNesteTurno() { return recuouNesteTurno; }
+    // ------------------------------------------------------------------
+    // Consultas
+    // ------------------------------------------------------------------
 
-    /** Imprime no console um resumo do estado atual deste jogador (usado pelo protótipo em {@link ui.App}). */
-    public void mostrarTabuleiro() {
-        System.out.println("\n================ TABULEIRO DE " + nome.toUpperCase() + " ================");
-        System.out.println("🔴 POKÉMON ATIVO: " + (pokemonAtivo != null ? pokemonAtivo : "[Nenhum]"));
-
-        System.out.print("🔵 BANCO DE RESERVAS: ");
-        if (banco.isEmpty()) {
-            System.out.println("[Vazio]");
-        } else {
-            for (int i = 0; i < banco.size(); i++) {
-                CartaPokemon p = banco.get(i);
-                System.out.print("[" + (i + 1) + " - " + p.getNome() + " HP:" + p.getHpAtual() + "] ");
+    /**
+     * Procura, na mão, todas as cartas que são evolução direta do Pokémon informado.
+     * Usado pela interface (para listar as opções) e pela IA do Bot.
+     *
+     * @param alvo Pokémon em campo que se quer evoluir
+     * @return posições na mão das evoluções possíveis (lista vazia se não houver)
+     */
+    public List<Integer> indicesDeEvolucoesNaMao(CartaPokemon alvo) {
+        List<Integer> indices = new ArrayList<>();
+        if (alvo == null) return indices;
+        for (int i = 0; i < mao.size(); i++) {
+            if (mao.get(i) instanceof CartaPokemon) {
+                CartaPokemon carta = (CartaPokemon) mao.get(i);
+                if (!carta.isBasico() && carta.getEvoluiDe().equalsIgnoreCase(alvo.getNome())) {
+                    indices.add(i);
+                }
             }
-            System.out.println();
         }
-
-        System.out.println("🃏 CARTAS NA MÃO: " + mao.size() + " cartas.");
-        System.out.println("📚 BARALHO: " + getTamanhoBaralho() + " cartas restantes.");
-        System.out.println("---- Limites do turno ----");
-        System.out.println("⚡ Energia anexada: " + (energiaAnexadaNestaRodada ? "SIM (esgotado)" : "Disponível"));
-        System.out.println("💥 Ataque usado: " + (atacouNestaRodada ? "SIM (esgotado — atacar encerra o turno)" : "Disponível"));
-        System.out.println("🔄 Recuo usado: " + (recuouNesteTurno ? "SIM (esgotado)" : "Disponível"));
-        System.out.println("====================================================\n");
+        return indices;
     }
 
-    /** @return {@code true} se já existe, em campo (ativo ou banco), um Pokémon com o nome informado */
+    /** @return posição na mão do primeiro Pokémon Básico, ou {@code -1} se não houver */
+    public int indiceDoPrimeiroBasicoNaMao() {
+        for (int i = 0; i < mao.size(); i++) {
+            if (mao.get(i) instanceof CartaPokemon && ((CartaPokemon) mao.get(i)).isBasico()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * @param nomePokemon nome a procurar
+     * @return {@code true} se já existe, em campo (ativo ou banco), um Pokémon com o nome informado
+     */
     public boolean baseEmCampo(String nomePokemon) {
         if (nomePokemon == null) return false;
-
         if (pokemonAtivo != null && pokemonAtivo.getNome().equalsIgnoreCase(nomePokemon)) {
             return true;
         }
@@ -511,66 +506,49 @@ public class Jogador {
         return false;
     }
 
-    /** Imprime no console as cartas atualmente na mão deste jogador (usado pelo protótipo em {@link ui.App}). */
-    public void mostrarMao() {
-        System.out.println("👋 CARTAS NA SUA MÃO:");
-        if (mao.isEmpty()) {
-            System.out.println("[Sua mão está vazia]");
-            System.out.println();
-            return;
-        }
-
-        System.out.println("  -- Pokémon --");
-        boolean temPokemon = false;
-        int evolucoesEscondidas = 0;
-        for (int i = 0; i < mao.size(); i++) {
-            if (mao.get(i) instanceof CartaPokemon) {
-                CartaPokemon p = (CartaPokemon) mao.get(i);
-
-                if (!p.isBasico() && !baseEmCampo(p.getEvoluiDe())) {
-                    evolucoesEscondidas++;
-                    continue;
-                }
-
-                String tag = !p.isBasico() ? " ✨(Pronto pra evoluir!)" : "";
-                System.out.println("  " + (i + 1) + ". " + p + tag);
-                temPokemon = true;
-            }
-        }
-        if (!temPokemon) System.out.println("  [Nenhum]");
-        if (evolucoesEscondidas > 0) {
-            System.out.println("  🔒 " + evolucoesEscondidas + " evolução(ões) escondida(s) até você colocar a forma base em campo.");
-        }
-
-        System.out.println("  -- Treinador --");
-        boolean temTreinador = false;
-        for (int i = 0; i < mao.size(); i++) {
-            if (mao.get(i) instanceof CartaTreinador) {
-                System.out.println("  " + (i + 1) + ". " + mao.get(i));
-                temTreinador = true;
-            }
-        }
-        if (!temTreinador) System.out.println("  [Nenhuma]");
-
-        System.out.println("  -- Energias --");
-        System.out.println("  ♾️  Energia disponível: Ilimitada (basta anexar em qualquer Pokémon em campo).");
-        System.out.println("      Cada Pokémon tem seu próprio limite (entre 6 e 8 energias).");
-
-        System.out.println();
+    /** @return {@code true} se este jogador não tem nenhum Pokémon em campo (nem Ativo nem no Banco) */
+    public boolean semPokemonEmCampo() {
+        return pokemonAtivo == null && banco.isEmpty();
     }
+
+    /** @return {@code true} se este jogador já anexou energia nesta rodada */
+    public boolean isEnergiaAnexadaNestaRodada() { return energiaAnexadaNestaRodada; }
+
+    /** @return {@code true} se este jogador já atacou nesta rodada */
+    public boolean isAtacouNestaRodada() { return atacouNestaRodada; }
+
+    /** @return {@code true} se este jogador já recuou nesta rodada */
+    public boolean isRecuouNesteTurno() { return recuouNesteTurno; }
 
     /** @return nome deste jogador (treinador) */
     public String getNome() { return nome; }
+
     /** @return lista (mutável) das cartas atualmente na mão */
     public List<Carta> getMao() { return mao; }
+
     /** @return lista (mutável) das cartas restantes no baralho */
     public List<Carta> getBaralho() { return baralho; }
+
     /** @return Pokémon Ativo deste jogador, ou {@code null} se não houver nenhum em campo */
     public CartaPokemon getPokemonAtivo() { return pokemonAtivo; }
+
     /** @return lista (mutável) dos Pokémon no Banco de Reservas */
     public List<CartaPokemon> getBanco() { return banco; }
+
     /** @return lista (mutável) dos Pokémon nocauteados (zona morta) */
     public List<CartaPokemon> getZonaMorta() { return zonaMorta; }
+
     /** @return lista (mutável) das cartas-prêmio ainda não conquistadas; vazia quando o jogador vence a partida */
     public List<Carta> getPremios() { return premios; }
+
+    /**
+     * Devolve a carta da mão na posição informada, validando o índice.
+     * Centraliza a validação que antes era repetida em cada ação.
+     */
+    private Carta cartaDaMao(int indiceNaMao) {
+        if (indiceNaMao < 0 || indiceNaMao >= mao.size()) {
+            throw new JogadaInvalidaException("Posição inválida na mão! Escolha uma carta entre 1 e " + mao.size() + ".");
+        }
+        return mao.get(indiceNaMao);
+    }
 }

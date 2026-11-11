@@ -19,7 +19,11 @@ import java.text.Normalizer;
  */
 public class CartaVisual extends JButton {
 
+    private static final long serialVersionUID = 1L;
+
+    /** Largura padrão de uma carta, em pixels. */
     public static final int LARGURA_PADRAO = 130;
+    /** Altura padrão de uma carta, em pixels. */
     public static final int ALTURA_PADRAO = 182;
 
     private final Carta carta;
@@ -27,14 +31,31 @@ public class CartaVisual extends JButton {
     private boolean mouseEmCima = false;
     private boolean selecionada = false;
 
+    /**
+     * Cria a carta no tamanho padrão, sem imagem.
+     *
+     * @param carta carta do jogo a ser desenhada
+     */
     public CartaVisual(Carta carta) {
         this(carta, null, LARGURA_PADRAO, ALTURA_PADRAO);
     }
 
+    /**
+     * Cria a carta no tamanho padrão.
+     *
+     * @param carta  carta do jogo a ser desenhada
+     * @param sprite ilustração do Pokémon (pode ser {@code null})
+     */
     public CartaVisual(Carta carta, Image sprite) {
         this(carta, sprite, LARGURA_PADRAO, ALTURA_PADRAO);
     }
 
+    /**
+     * @param carta   carta do jogo a ser desenhada
+     * @param sprite  ilustração do Pokémon (pode ser {@code null})
+     * @param largura largura em pixels
+     * @param altura  altura em pixels
+     */
     public CartaVisual(Carta carta, Image sprite, int largura, int altura) {
         this.carta = carta;
         this.sprite = sprite;
@@ -65,7 +86,14 @@ public class CartaVisual extends JButton {
         });
     }
 
-    /** Espaço vazio do campo (banco ou ativo sem Pokémon), com borda tracejada. */
+    /**
+     * Espaço vazio do campo (banco ou ativo sem Pokémon), com borda tracejada.
+     *
+     * @param texto   rótulo exibido no centro (ex.: "BANCO 1")
+     * @param largura largura em pixels
+     * @param altura  altura em pixels
+     * @return o componente pronto para ser adicionado na tela
+     */
     public static JComponent espacoVazio(String texto, int largura, int altura) {
         JComponent espaco = new JComponent() {
             @Override
@@ -93,17 +121,26 @@ public class CartaVisual extends JButton {
         return espaco;
     }
 
+    /** @return carta do jogo desenhada por este componente */
     public Carta getCarta() {
         return carta;
     }
 
-    /** Use quando o sprite terminar de baixar depois que a carta já apareceu. */
+    /**
+     * Troca a ilustração. Use quando o sprite terminar de baixar depois que a carta já apareceu.
+     *
+     * @param sprite nova ilustração
+     */
     public void setSprite(Image sprite) {
         this.sprite = sprite;
         repaint();
     }
 
-    /** Deixa a carta com a borda dourada, por exemplo quando o jogador escolheu ela. */
+    /**
+     * Deixa a carta com a borda dourada, por exemplo quando o jogador escolheu ela.
+     *
+     * @param selecionada {@code true} para destacar a carta
+     */
     public void setSelecionada(boolean selecionada) {
         this.selecionada = selecionada;
         repaint();
@@ -453,4 +490,4 @@ public class CartaVisual extends JButton {
         return new String[]{cortarTexto(primeira.toString(), fm, larguraMax),
                 cortarTexto(resto.toString(), fm, larguraMax)};
     }
-}
+}

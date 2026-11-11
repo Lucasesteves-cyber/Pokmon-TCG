@@ -19,6 +19,8 @@ import java.util.Random;
  */
 public class SorteioMoeda extends JDialog {
 
+    private static final long serialVersionUID = 1L;
+
     private static final int LARGURA = 640;
     private static final int ALTURA = 560;
     private static final int DURACAO_GIRO_MS = 1800;
@@ -273,4 +275,4 @@ public class SorteioMoeda extends JDialog {
         botao.setFocusPainted(false);
         return botao;
     }
-}
+}
